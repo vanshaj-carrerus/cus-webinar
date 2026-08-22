@@ -34,12 +34,14 @@ type TokenResponse = {
   url: string;
 };
 
-// Viewers are hidden participants, so the only remote participant a viewer
-// can see is the host — this tells us whether they're connected at all, as
-// opposed to connected but not sharing camera/mic yet.
+// Viewers are visible participants too (so chat can resolve their names —
+// see app/api/token/route.ts), so we can't just check "is anyone else
+// here" to know whether the host specifically is connected; check the
+// identity prefix our token route assigns instead.
 function WaitingForHost() {
   const remoteParticipants = useRemoteParticipants();
-  return remoteParticipants.length > 0
+  const hostPresent = remoteParticipants.some((p) => p.identity.startsWith("host-"));
+  return hostPresent
     ? "The host is connected but hasn't turned on their camera or mic yet."
     : "Waiting for the host to go live...";
 }

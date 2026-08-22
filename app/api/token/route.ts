@@ -35,13 +35,17 @@ export async function POST(request: NextRequest) {
   at.addGrant({
     room,
     roomJoin: true,
-    // Host can publish camera/mic and is visible in the participant list.
-    // Viewer is subscribe-only for media and hidden from the participant
-    // list, but can still send/receive chat (data channel).
+    // Host can publish camera/mic; viewers are subscribe-only for media but
+    // can still send/receive chat (data channel). Both are visible
+    // (hidden:false) — LiveKit's Chat component can't resolve a hidden
+    // participant's name/track for other clients, which made viewer chat
+    // messages show up with a blank sender name. Viewers still don't
+    // clutter the video grid since they publish nothing until invited to
+    // speak (see lib/livekit.ts inviteToSpeak).
     canPublish: role === "host",
     canPublishData: true,
     canSubscribe: true,
-    hidden: role === "viewer",
+    hidden: false,
   });
 
   const token = await at.toJwt();

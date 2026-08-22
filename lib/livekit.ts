@@ -36,9 +36,8 @@ export interface RoomParticipant {
   joinedAt: number;
 }
 
-// All participants currently in the room, including hidden viewers
-// (RoomServiceClient sees hidden participants even though other clients
-// don't). Returns [] if the room isn't active yet.
+// All participants currently in the room. Returns [] if the room isn't
+// active yet.
 export async function getParticipants(room: string): Promise<RoomParticipant[]> {
   try {
     const participants = await getRoomService().listParticipants(room);
@@ -61,19 +60,20 @@ export async function getParticipants(room: string): Promise<RoomParticipant[]> 
   }
 }
 
-// Promotes a viewer to a visible, publishing participant so they can turn
-// on their camera/mic (e.g. the host inviting someone to speak). Setting
-// hidden:false so other participants can actually see/subscribe to them.
+// Promotes a viewer to a publishing participant so they can turn on their
+// camera/mic (e.g. the host inviting someone to speak).
 export async function inviteToSpeak(room: string, identity: string): Promise<void> {
   await getRoomService().updateParticipant(room, identity, {
     permission: { canSubscribe: true, canPublish: true, canPublishData: true, hidden: false },
   });
 }
 
-// Reverts a promoted viewer back to view-only and hidden.
+// Reverts a promoted viewer back to view-only. Stays hidden:false, same as
+// every other viewer (see app/api/token/route.ts) — otherwise their chat
+// messages would stop resolving a sender name for other clients.
 export async function revokeSpeaker(room: string, identity: string): Promise<void> {
   await getRoomService().updateParticipant(room, identity, {
-    permission: { canSubscribe: true, canPublish: false, canPublishData: true, hidden: true },
+    permission: { canSubscribe: true, canPublish: false, canPublishData: true, hidden: false },
   });
 }
 
