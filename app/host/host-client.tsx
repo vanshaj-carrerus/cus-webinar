@@ -11,6 +11,25 @@ type TokenResponse = {
   url: string;
 };
 
+interface SavedSession {
+  name: string;
+  camOn: boolean;
+  micOn: boolean;
+}
+
+function sessionKey(room: string) {
+  return `webinar-host-session-${room}`;
+}
+
+function getSavedSession(room: string): SavedSession | null {
+  try {
+    const raw = sessionStorage.getItem(sessionKey(room));
+    return raw ? (JSON.parse(raw) as SavedSession) : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function HostClient() {
   const searchParams = useSearchParams();
   const room = searchParams.get("room") ?? "";
@@ -36,26 +55,56 @@ export default function HostClient() {
       .catch(() => {});
   }, [room]);
 
-  const joinAsHost = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name.trim() || !room) return;
+  const join = async (joinName: string, useCam: boolean, useMic: boolean) => {
+    if (!joinName.trim() || !room) return;
 
+    // Keep the pre-join form's fields in sync too, so if this call fails
+    // (e.g. an auto-rejoin after a refresh) the form shows the same values
+    // instead of a blank retry screen.
+    setName(joinName);
+    setCamOn(useCam);
+    setMicOn(useMic);
     setLoading(true);
     setError(null);
     try {
       const res = await fetch("/api/token", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ room, name: name.trim(), role: "host" }),
+        body: JSON.stringify({ room, name: joinName.trim(), role: "host" }),
       });
       if (!res.ok) throw new Error((await res.json()).error ?? "Failed to get token");
       const data: TokenResponse = await res.json();
       setConnection(data);
+      sessionStorage.setItem(
+        sessionKey(room),
+        JSON.stringify({ name: joinName.trim(), camOn: useCam, micOn: useMic } satisfies SavedSession)
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setLoading(false);
     }
+  };
+
+  // If this room has a saved session (we were live here before this tab
+  // reloaded), rejoin automatically instead of making the host retype their
+  // name and click "Go live" again — closes the gap where viewers would
+  // otherwise see the stream drop while the host manually reconnects.
+  useEffect(() => {
+    if (!room) return;
+    const saved = getSavedSession(room);
+    if (!saved) return;
+    // Deliberate action-on-mount, not a data-fetch-into-state pattern —
+    // there's no clean alternative to an effect for "start a network
+    // request once, on mount, if a condition holds".
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    join(saved.name, saved.camOn, saved.micOn);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [room]);
+
+  const joinAsHost = (e: React.FormEvent) => {
+    e.preventDefault();
+    join(name, camOn, micOn);
   };
 
   if (!room) {
@@ -86,6 +135,7 @@ export default function HostClient() {
         }}
         onDisconnected={() => {
           setConnection(null);
+          sessionStorage.removeItem(sessionKey(room));
           if (!webinarExists) return;
           fetch(`/api/webinars/${room}`, {
             method: "PATCH",
