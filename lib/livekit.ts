@@ -32,6 +32,7 @@ export interface RoomParticipant {
   identity: string;
   name: string;
   isHost: boolean;
+  canPublish: boolean;
   joinedAt: number;
 }
 
@@ -45,7 +46,11 @@ export async function getParticipants(room: string): Promise<RoomParticipant[]> 
       .map((p) => ({
         identity: p.identity,
         name: p.name || p.identity,
-        isHost: p.permission?.canPublish ?? false,
+        // Determined from the identity prefix our token route assigns
+        // ("host-..." / "viewer-..."), not from canPublish — an invited
+        // viewer can also have canPublish=true without being the host.
+        isHost: p.identity.startsWith("host-"),
+        canPublish: p.permission?.canPublish ?? false,
         joinedAt: Number(p.joinedAt) * 1000,
       }))
       .sort((a, b) => a.joinedAt - b.joinedAt);
@@ -54,6 +59,22 @@ export async function getParticipants(room: string): Promise<RoomParticipant[]> 
     if (status === 404) return [];
     throw err;
   }
+}
+
+// Promotes a viewer to a visible, publishing participant so they can turn
+// on their camera/mic (e.g. the host inviting someone to speak). Setting
+// hidden:false so other participants can actually see/subscribe to them.
+export async function inviteToSpeak(room: string, identity: string): Promise<void> {
+  await getRoomService().updateParticipant(room, identity, {
+    permission: { canSubscribe: true, canPublish: true, canPublishData: true, hidden: false },
+  });
+}
+
+// Reverts a promoted viewer back to view-only and hidden.
+export async function revokeSpeaker(room: string, identity: string): Promise<void> {
+  await getRoomService().updateParticipant(room, identity, {
+    permission: { canSubscribe: true, canPublish: false, canPublishData: true, hidden: true },
+  });
 }
 
 // Disconnects one participant by identity. No-op if they've already left.

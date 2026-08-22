@@ -9,10 +9,11 @@ import {
   ParticipantTile,
   RoomAudioRenderer,
   StartAudio,
+  useLocalParticipant,
   useRemoteParticipants,
   useTracks,
 } from "@livekit/components-react";
-import { Track } from "livekit-client";
+import { ParticipantEvent, Track } from "livekit-client";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import ParticipantCount from "../participant-count";
@@ -77,6 +78,87 @@ function Stage() {
           <ParticipantTile trackRef={cameraTrack} className="h-full w-full" />
         </div>
       )}
+    </div>
+  );
+}
+
+// Listens for the host promoting this viewer to a speaker (a server-side
+// permission change, pushed live via LiveKit's ParticipantPermissionsChanged
+// event) and prompts them to turn on their camera/mic. If the host later
+// revokes it, their tracks are stopped automatically.
+function SpeakerInvite() {
+  const { localParticipant, isCameraEnabled, isMicrophoneEnabled } = useLocalParticipant();
+  const [canPublish, setCanPublish] = useState(
+    () => localParticipant.permissions?.canPublish ?? false
+  );
+  const [promptDismissed, setPromptDismissed] = useState(false);
+
+  useEffect(() => {
+    const handlePermissionsChanged = () => {
+      const next = localParticipant.permissions?.canPublish ?? false;
+      setCanPublish(next);
+      if (!next) {
+        localParticipant.setCameraEnabled(false).catch(() => {});
+        localParticipant.setMicrophoneEnabled(false).catch(() => {});
+        setPromptDismissed(false);
+      }
+    };
+    localParticipant.on(ParticipantEvent.ParticipantPermissionsChanged, handlePermissionsChanged);
+    return () => {
+      localParticipant.off(ParticipantEvent.ParticipantPermissionsChanged, handlePermissionsChanged);
+    };
+  }, [localParticipant]);
+
+  if (!canPublish) return null;
+
+  const accept = async () => {
+    await Promise.all([
+      localParticipant.setCameraEnabled(true),
+      localParticipant.setMicrophoneEnabled(true),
+    ]).catch(() => {});
+    setPromptDismissed(true);
+  };
+
+  if (!promptDismissed && !isCameraEnabled && !isMicrophoneEnabled) {
+    return (
+      <div className="absolute left-1/2 top-3 z-30 flex w-[calc(100%-1.5rem)] max-w-sm -translate-x-1/2 items-center justify-between gap-3 rounded-xl border border-indigo-400/30 bg-indigo-950/90 px-4 py-3 text-white shadow-lg backdrop-blur">
+        <p className="text-sm">The host invited you to turn on your camera &amp; mic.</p>
+        <div className="flex shrink-0 gap-1.5">
+          <button
+            onClick={() => setPromptDismissed(true)}
+            className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-zinc-300 hover:bg-white/10"
+          >
+            Not now
+          </button>
+          <button
+            onClick={accept}
+            className="rounded-lg bg-indigo-600 px-2.5 py-1.5 text-xs font-medium hover:bg-indigo-500"
+          >
+            Turn on
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="absolute left-1/2 top-3 z-30 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-emerald-950/90 px-3 py-1.5 text-xs font-medium text-emerald-300 shadow-lg backdrop-blur">
+      <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+      You&apos;re live
+      <button
+        onClick={() => localParticipant.setMicrophoneEnabled(!isMicrophoneEnabled)}
+        aria-label={isMicrophoneEnabled ? "Mute your mic" : "Unmute your mic"}
+        className="ml-1 flex h-6 w-6 items-center justify-center rounded-full text-emerald-200 hover:bg-white/10"
+      >
+        {isMicrophoneEnabled ? <MicIcon className="h-3.5 w-3.5" /> : <MicOffIcon className="h-3.5 w-3.5" />}
+      </button>
+      <button
+        onClick={() => localParticipant.setCameraEnabled(!isCameraEnabled)}
+        aria-label={isCameraEnabled ? "Turn off your camera" : "Turn on your camera"}
+        className="flex h-6 w-6 items-center justify-center rounded-full text-emerald-200 hover:bg-white/10"
+      >
+        {isCameraEnabled ? <VideoIcon className="h-3.5 w-3.5" /> : <VideoOffIcon className="h-3.5 w-3.5" />}
+      </button>
     </div>
   );
 }
@@ -261,6 +343,7 @@ export default function WatchClient() {
             <div className="absolute left-3 top-3 z-10 flex items-center gap-2">
               <ParticipantCount room={room} />
             </div>
+            <SpeakerInvite />
             {videoHidden ? (
               <div className="flex h-full items-center justify-center text-sm text-zinc-400">
                 Video hidden — audio only

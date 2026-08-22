@@ -8,13 +8,14 @@ interface Participant {
   identity: string;
   name: string;
   isHost: boolean;
+  canPublish: boolean;
   joinedAt: number;
 }
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
-// canManage: whether to show "Remove" controls (host view only — a viewer
-// should never be able to kick another participant).
+// canManage: whether to show "Remove"/"Invite" controls (host view only —
+// a viewer should never be able to manage another participant).
 export default function ParticipantCount({
   room,
   canManage = false,
@@ -28,6 +29,7 @@ export default function ParticipantCount({
     { refreshInterval: 5000 }
   );
   const [open, setOpen] = useState(false);
+  const [pendingId, setPendingId] = useState<string | null>(null);
 
   if (data === undefined) return null;
 
@@ -38,6 +40,30 @@ export default function ParticipantCount({
       method: "DELETE",
     });
     await mutate();
+  };
+
+  const invite = async (identity: string) => {
+    setPendingId(identity);
+    try {
+      await fetch(`/api/webinars/${room}/participants/${encodeURIComponent(identity)}/invite`, {
+        method: "POST",
+      });
+      await mutate();
+    } finally {
+      setPendingId(null);
+    }
+  };
+
+  const revoke = async (identity: string) => {
+    setPendingId(identity);
+    try {
+      await fetch(`/api/webinars/${room}/participants/${encodeURIComponent(identity)}/revoke`, {
+        method: "POST",
+      });
+      await mutate();
+    } finally {
+      setPendingId(null);
+    }
   };
 
   return (
@@ -92,14 +118,38 @@ export default function ParticipantCount({
                         Host
                       </span>
                     )}
+                    {!p.isHost && p.canPublish && (
+                      <span className="shrink-0 rounded bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-medium text-emerald-300">
+                        Speaking
+                      </span>
+                    )}
                   </span>
                   {canManage && !p.isHost && (
-                    <button
-                      onClick={() => remove(p.identity)}
-                      className="shrink-0 rounded-md px-2 py-1 text-xs font-medium text-red-400 hover:bg-red-500/10 hover:text-red-300"
-                    >
-                      Remove
-                    </button>
+                    <span className="flex shrink-0 items-center gap-1">
+                      {p.canPublish ? (
+                        <button
+                          onClick={() => revoke(p.identity)}
+                          disabled={pendingId === p.identity}
+                          className="rounded-md px-2 py-1 text-xs font-medium text-zinc-300 hover:bg-white/10 disabled:opacity-50"
+                        >
+                          Revoke
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => invite(p.identity)}
+                          disabled={pendingId === p.identity}
+                          className="rounded-md px-2 py-1 text-xs font-medium text-indigo-300 hover:bg-indigo-500/10 disabled:opacity-50"
+                        >
+                          Invite
+                        </button>
+                      )}
+                      <button
+                        onClick={() => remove(p.identity)}
+                        className="rounded-md px-2 py-1 text-xs font-medium text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                      >
+                        Remove
+                      </button>
+                    </span>
                   )}
                 </div>
               ))}
