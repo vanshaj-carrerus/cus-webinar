@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import useSWR from "swr";
 import type { Webinar } from "@/lib/webinars";
+import { useOrigin } from "../use-origin";
 
 const STATUS_STYLES: Record<Webinar["status"], string> = {
   scheduled: "bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300",
@@ -33,6 +34,7 @@ export default function AdminPage() {
     refreshInterval: 5000,
   });
   const webinars = data?.webinars ?? [];
+  const origin = useOrigin();
 
   const [title, setTitle] = useState("");
   const [scheduledAt, setScheduledAt] = useState("");
@@ -158,8 +160,7 @@ export default function AdminPage() {
                   rel="noopener noreferrer"
                   className="break-all font-mono text-blue-600 underline hover:text-blue-500 dark:text-blue-400"
                 >
-                  {typeof window !== "undefined" ? window.location.origin : ""}/host?room=
-                  {webinar.id}
+                  {origin}/host?room={webinar.id}
                 </a>
               </p>
               <p className="mt-0.5 text-xs text-zinc-500">
@@ -170,8 +171,7 @@ export default function AdminPage() {
                   rel="noopener noreferrer"
                   className="break-all font-mono text-blue-600 underline hover:text-blue-500 dark:text-blue-400"
                 >
-                  {typeof window !== "undefined" ? window.location.origin : ""}/watch?room=
-                  {webinar.id}
+                  {origin}/watch?room={webinar.id}
                 </a>
               </p>
             </div>

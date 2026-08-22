@@ -28,16 +28,40 @@ export async function closeRoom(room: string): Promise<void> {
   }
 }
 
-// Total participants currently in the room, including hidden viewers
+export interface RoomParticipant {
+  identity: string;
+  name: string;
+  isHost: boolean;
+  joinedAt: number;
+}
+
+// All participants currently in the room, including hidden viewers
 // (RoomServiceClient sees hidden participants even though other clients
-// don't). Returns 0 if the room isn't active yet.
-export async function getParticipantCount(room: string): Promise<number> {
+// don't). Returns [] if the room isn't active yet.
+export async function getParticipants(room: string): Promise<RoomParticipant[]> {
   try {
     const participants = await getRoomService().listParticipants(room);
-    return participants.length;
+    return participants
+      .map((p) => ({
+        identity: p.identity,
+        name: p.name || p.identity,
+        isHost: p.permission?.canPublish ?? false,
+        joinedAt: Number(p.joinedAt) * 1000,
+      }))
+      .sort((a, b) => a.joinedAt - b.joinedAt);
   } catch (err) {
     const status = (err as { status?: number }).status;
-    if (status === 404) return 0;
+    if (status === 404) return [];
     throw err;
+  }
+}
+
+// Disconnects one participant by identity. No-op if they've already left.
+export async function removeParticipant(room: string, identity: string): Promise<void> {
+  try {
+    await getRoomService().removeParticipant(room, identity);
+  } catch (err) {
+    const status = (err as { status?: number }).status;
+    if (status !== 404) throw err;
   }
 }

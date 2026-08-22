@@ -4,6 +4,7 @@ import { LiveKitRoom, VideoConference } from "@livekit/components-react";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import ParticipantCount from "../participant-count";
+import { useOrigin } from "../use-origin";
 
 type TokenResponse = {
   token: string;
@@ -13,6 +14,7 @@ type TokenResponse = {
 export default function HostClient() {
   const searchParams = useSearchParams();
   const room = searchParams.get("room") ?? "";
+  const origin = useOrigin();
 
   const [name, setName] = useState("");
   const [webinarTitle, setWebinarTitle] = useState<string | null>(null);
@@ -93,7 +95,7 @@ export default function HostClient() {
         }}
       >
         <div className="absolute left-3 top-3 z-10">
-          <ParticipantCount room={room} />
+          <ParticipantCount room={room} canManage />
         </div>
         <VideoConference />
       </LiveKitRoom>
@@ -109,16 +111,14 @@ export default function HostClient() {
         </p>
         <p className="mt-1 text-sm text-zinc-500">
           Share this link with viewers:{" "}
-          {typeof window !== "undefined" && (
-            <a
-              href={`${window.location.origin}/watch?room=${room}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-mono break-all text-blue-600 underline hover:text-blue-500 dark:text-blue-400"
-            >
-              {`${window.location.origin}/watch?room=${room}`}
-            </a>
-          )}
+          <a
+            href={`/watch?room=${room}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-mono break-all text-blue-600 underline hover:text-blue-500 dark:text-blue-400"
+          >
+            {origin}/watch?room={room}
+          </a>
         </p>
       </div>
 

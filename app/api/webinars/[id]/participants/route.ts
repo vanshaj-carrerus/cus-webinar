@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getParticipantCount } from "@/lib/livekit";
+import { getParticipants } from "@/lib/livekit";
 
 export async function GET(
   _request: NextRequest,
@@ -7,11 +7,11 @@ export async function GET(
 ) {
   const { id } = await params;
   try {
-    const count = await getParticipantCount(id);
-    return NextResponse.json({ count });
+    const participants = await getParticipants(id);
+    return NextResponse.json({ count: participants.length, participants });
   } catch (err) {
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Failed to get participant count" },
+      { error: err instanceof Error ? err.message : "Failed to get participants" },
       { status: 500 }
     );
   }

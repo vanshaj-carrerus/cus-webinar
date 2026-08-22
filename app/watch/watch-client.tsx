@@ -1,10 +1,8 @@
 "use client";
 
 import {
-  CarouselLayout,
   Chat,
-  FocusLayout,
-  FocusLayoutContainer,
+  DisconnectButton,
   GridLayout,
   LiveKitRoom,
   ParticipantTile,
@@ -44,8 +42,10 @@ function Stage() {
   }
 
   // When the host is both screen-sharing and on camera, show the screen
-  // share large with the camera in a small strip — same layout as most
-  // webinar platforms. With just one track, it fills the stage.
+  // share filling the stage with the camera as a small picture-in-picture
+  // overlay (like most webinar platforms) — a side-by-side split badly
+  // letterboxes widescreen screen share content. With just one track, it
+  // fills the stage on its own.
   const screenShareTrack = tracks.find((t) => t.source === Track.Source.ScreenShare);
   if (!screenShareTrack || tracks.length === 1) {
     return (
@@ -55,14 +55,16 @@ function Stage() {
     );
   }
 
-  const carouselTracks = tracks.filter((t) => t !== screenShareTrack);
+  const cameraTrack = tracks.find((t) => t !== screenShareTrack);
   return (
-    <FocusLayoutContainer style={{ height: "100%" }}>
-      <CarouselLayout tracks={carouselTracks}>
-        <ParticipantTile />
-      </CarouselLayout>
-      <FocusLayout trackRef={screenShareTrack} />
-    </FocusLayoutContainer>
+    <div className="relative h-full w-full">
+      <ParticipantTile trackRef={screenShareTrack} className="h-full w-full" />
+      {cameraTrack && (
+        <div className="absolute right-4 top-4 h-32 w-48 overflow-hidden rounded-lg border-2 border-white/20 shadow-lg">
+          <ParticipantTile trackRef={cameraTrack} className="h-full w-full" />
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -125,22 +127,34 @@ export default function WatchClient() {
         video={false}
         data-lk-theme="default"
         style={{ height: "100vh" }}
+        onDisconnected={() => setConnection(null)}
       >
-        <div className="flex h-full">
+        <div className="relative flex h-full">
           <div className="relative min-w-0 flex-1">
             <div className="absolute left-3 top-3 z-10 flex items-center gap-2">
               <ParticipantCount room={room} />
             </div>
             <button
               onClick={() => setChatOpen((v) => !v)}
-              className="absolute right-3 top-3 z-10 rounded-full bg-black/60 px-3 py-1 text-xs font-medium text-white backdrop-blur sm:hidden"
+              className="absolute right-3 top-3 z-30 rounded-full bg-black/60 px-3 py-1 text-xs font-medium text-white backdrop-blur sm:hidden"
             >
               {chatOpen ? "Hide chat" : "Show chat"}
             </button>
+            {/* Wrapped in a plain div: DisconnectButton's own "lk-disconnect-button"
+                class sets `position: relative`, which wins the cascade over an
+                `absolute` utility class applied directly to the button itself. */}
+            <div className="absolute bottom-3 left-3 z-30">
+              <DisconnectButton className="rounded-full bg-red-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-red-500">
+                Leave
+              </DisconnectButton>
+            </div>
             <Stage />
           </div>
           {chatOpen && (
-            <div className="w-full max-w-[320px] shrink-0 border-l border-zinc-800">
+            // Full-screen overlay on mobile (there's no room to split the
+            // screen with a usable video), a fixed-width side panel on
+            // larger screens where both can fit side by side.
+            <div className="absolute inset-0 z-20 bg-black sm:static sm:inset-auto sm:z-auto sm:w-80 sm:shrink-0 sm:border-l sm:border-zinc-800">
               <Chat style={{ height: "100%" }} />
             </div>
           )}
