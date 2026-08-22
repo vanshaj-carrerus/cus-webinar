@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import ParticipantCount from "../participant-count";
 import { useOrigin } from "../use-origin";
+import { BroadcastIcon, MicIcon, MicOffIcon, VideoIcon, VideoOffIcon } from "../icons";
 
 type TokenResponse = {
   token: string;
@@ -153,67 +154,77 @@ export default function HostClient() {
   }
 
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-6 px-6">
-      <div className="text-center">
-        <h1 className="text-2xl font-semibold">{webinarTitle ?? "Host webinar"}</h1>
-        <p className="mt-1 text-zinc-500">
-          Room <span className="font-mono">{room}</span>
-        </p>
-        <p className="mt-1 text-sm text-zinc-500">
-          Share this link with viewers:{" "}
+    <div className="flex flex-1 flex-col items-center justify-center bg-zinc-50 px-6 py-16 dark:bg-zinc-950">
+      <div className="w-full max-w-sm">
+        <div className="flex flex-col items-center text-center">
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-sm shadow-indigo-600/20">
+            <BroadcastIcon className="h-5 w-5" />
+          </div>
+          <h1 className="mt-4 text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
+            {webinarTitle ?? "Host webinar"}
+          </h1>
+          <p className="mt-1 font-mono text-xs text-zinc-400">room · {room}</p>
+        </div>
+
+        <div className="mt-8 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+          <form onSubmit={joinAsHost} className="flex flex-col gap-3">
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Your name"
+              className="h-11 rounded-lg border border-zinc-200 bg-zinc-50 px-4 text-sm text-zinc-900 outline-none transition-colors focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-50 dark:focus:ring-indigo-950"
+            />
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setCamOn((v) => !v)}
+                aria-pressed={camOn}
+                className={`flex h-10 flex-1 items-center justify-center gap-1.5 rounded-lg border text-sm font-medium transition-colors ${
+                  camOn
+                    ? "border-zinc-200 text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                    : "border-red-200 bg-red-50 text-red-600 dark:border-red-900 dark:bg-red-950/40 dark:text-red-400"
+                }`}
+              >
+                {camOn ? <VideoIcon className="h-4 w-4" /> : <VideoOffIcon className="h-4 w-4" />}
+                Camera
+              </button>
+              <button
+                type="button"
+                onClick={() => setMicOn((v) => !v)}
+                aria-pressed={micOn}
+                className={`flex h-10 flex-1 items-center justify-center gap-1.5 rounded-lg border text-sm font-medium transition-colors ${
+                  micOn
+                    ? "border-zinc-200 text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                    : "border-red-200 bg-red-50 text-red-600 dark:border-red-900 dark:bg-red-950/40 dark:text-red-400"
+                }`}
+              >
+                {micOn ? <MicIcon className="h-4 w-4" /> : <MicOffIcon className="h-4 w-4" />}
+                Mic
+              </button>
+            </div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="h-11 rounded-lg bg-indigo-600 text-sm font-medium text-white transition-colors hover:bg-indigo-500 disabled:opacity-50"
+            >
+              {loading ? "Joining..." : "Go live"}
+            </button>
+            {error && <p className="text-xs text-red-500">{error}</p>}
+          </form>
+        </div>
+
+        <p className="mt-4 truncate text-center text-xs text-zinc-400">
+          Viewer link:{" "}
           <a
             href={`/watch?room=${room}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="font-mono break-all text-blue-600 underline hover:text-blue-500 dark:text-blue-400"
+            className="font-mono text-indigo-600 hover:underline dark:text-indigo-400"
           >
             {origin}/watch?room={room}
           </a>
         </p>
       </div>
-
-      <form onSubmit={joinAsHost} className="flex w-full max-w-sm flex-col gap-3">
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Your name"
-          className="h-12 rounded-full border border-zinc-300 bg-white px-5 text-black outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-50"
-        />
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => setCamOn((v) => !v)}
-            aria-pressed={camOn}
-            className={`h-11 flex-1 rounded-full border px-4 text-sm font-medium transition-colors ${
-              camOn
-                ? "border-zinc-300 hover:bg-black/[.04] dark:border-zinc-700 dark:hover:bg-[#1a1a1a]"
-                : "border-red-300 text-red-600 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950/40"
-            }`}
-          >
-            Camera: {camOn ? "On" : "Off"}
-          </button>
-          <button
-            type="button"
-            onClick={() => setMicOn((v) => !v)}
-            aria-pressed={micOn}
-            className={`h-11 flex-1 rounded-full border px-4 text-sm font-medium transition-colors ${
-              micOn
-                ? "border-zinc-300 hover:bg-black/[.04] dark:border-zinc-700 dark:hover:bg-[#1a1a1a]"
-                : "border-red-300 text-red-600 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950/40"
-            }`}
-          >
-            Mic: {micOn ? "On" : "Off"}
-          </button>
-        </div>
-        <button
-          type="submit"
-          disabled={loading}
-          className="h-12 rounded-full bg-foreground px-5 font-medium text-background transition-colors hover:bg-[#383838] disabled:opacity-50 dark:hover:bg-[#ccc]"
-        >
-          {loading ? "Joining..." : "Go live"}
-        </button>
-        {error && <p className="text-sm text-red-500">{error}</p>}
-      </form>
     </div>
   );
 }

@@ -16,6 +16,18 @@ import { Track } from "livekit-client";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import ParticipantCount from "../participant-count";
+import {
+  BroadcastIcon,
+  ChatIcon,
+  LeaveIcon,
+  MaximizeIcon,
+  MicIcon,
+  MicOffIcon,
+  MinimizeIcon,
+  SettingsIcon,
+  VideoIcon,
+  VideoOffIcon,
+} from "../icons";
 
 type TokenResponse = {
   token: string;
@@ -34,7 +46,7 @@ function Stage() {
 
   if (tracks.length === 0) {
     return (
-      <div className="flex h-full items-center justify-center text-center text-zinc-400">
+      <div className="flex h-full items-center justify-center text-center text-sm text-zinc-400">
         {remoteParticipants.length > 0
           ? "The host is connected but hasn't turned on their camera or mic yet."
           : "Waiting for the host to go live..."}
@@ -70,29 +82,33 @@ function Stage() {
 }
 
 function ControlButton({
+  icon,
   label,
   active,
-  onClick,
   danger,
+  onClick,
 }: {
+  icon: React.ReactNode;
   label: string;
   active?: boolean;
-  onClick: () => void;
   danger?: boolean;
+  onClick: () => void;
 }) {
   return (
     <button
       onClick={onClick}
       aria-pressed={active}
-      className={`h-9 rounded-full px-3 text-xs font-medium transition-colors ${
+      aria-label={label}
+      title={label}
+      className={`flex h-9 w-9 items-center justify-center rounded-full transition-colors ${
         danger
           ? "bg-red-600 text-white hover:bg-red-500"
           : active
-            ? "bg-white text-black"
-            : "bg-white/10 text-white hover:bg-white/20"
+            ? "bg-white text-zinc-900"
+            : "text-zinc-200 hover:bg-white/15"
       }`}
     >
-      {label}
+      {icon}
     </button>
   );
 }
@@ -134,31 +150,43 @@ function ViewerControlBar({
   };
 
   return (
-    <div className="absolute bottom-3 left-1/2 z-30 flex -translate-x-1/2 items-center gap-2 rounded-full bg-black/70 px-3 py-2 backdrop-blur">
-      <ControlButton label={muted ? "Unmute" : "Mute"} active={muted} onClick={() => setMuted((v) => !v)} />
+    <div className="absolute bottom-3 left-1/2 z-30 flex -translate-x-1/2 items-center gap-1 rounded-full bg-zinc-900/80 p-1.5 shadow-lg backdrop-blur">
       <ControlButton
+        icon={muted ? <MicOffIcon /> : <MicIcon />}
+        label={muted ? "Unmute" : "Mute"}
+        active={muted}
+        onClick={() => setMuted((v) => !v)}
+      />
+      <ControlButton
+        icon={videoHidden ? <VideoOffIcon /> : <VideoIcon />}
         label={videoHidden ? "Show video" : "Hide video"}
         active={videoHidden}
         onClick={onToggleVideo}
       />
       <ControlButton
+        icon={isFullscreen ? <MinimizeIcon /> : <MaximizeIcon />}
         label={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
-        active={isFullscreen}
         onClick={toggleFullscreen}
       />
-      <ControlButton label="Chat" active={chatOpen} onClick={onToggleChat} />
+      <ControlButton icon={<ChatIcon />} label="Chat" active={chatOpen} onClick={onToggleChat} />
       <div className="relative">
-        <ControlButton label="Settings" active={settingsOpen} onClick={() => setSettingsOpen((v) => !v)} />
+        <ControlButton
+          icon={<SettingsIcon />}
+          label="Settings"
+          active={settingsOpen}
+          onClick={() => setSettingsOpen((v) => !v)}
+        />
         {settingsOpen && (
-          <div className="absolute bottom-full left-1/2 mb-2 w-56 -translate-x-1/2 rounded-lg bg-black/90 p-3 text-white shadow-lg backdrop-blur">
+          <div className="absolute bottom-full left-1/2 mb-2 w-56 -translate-x-1/2 rounded-xl border border-white/10 bg-zinc-900/95 p-3 text-white shadow-xl backdrop-blur">
             <p className="mb-2 text-xs font-medium text-zinc-400">Speaker</p>
             <MediaDeviceSelect kind="audiooutput" />
           </div>
         )}
       </div>
+      <div className="mx-1 h-5 w-px bg-white/15" />
       <DisconnectButton>
-        <span className="flex h-9 items-center rounded-full bg-red-600 px-3 text-xs font-medium text-white hover:bg-red-500">
-          Leave
+        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-red-600 text-white hover:bg-red-500">
+          <LeaveIcon />
         </span>
       </DisconnectButton>
     </div>
@@ -234,7 +262,7 @@ export default function WatchClient() {
               <ParticipantCount room={room} />
             </div>
             {videoHidden ? (
-              <div className="flex h-full items-center justify-center text-zinc-400">
+              <div className="flex h-full items-center justify-center text-sm text-zinc-400">
                 Video hidden — audio only
               </div>
             ) : (
@@ -278,30 +306,37 @@ export default function WatchClient() {
   }
 
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-6 px-6">
-      <div className="text-center">
-        <h1 className="text-2xl font-semibold">{webinarTitle ?? "Watch webinar"}</h1>
-        <p className="mt-1 text-zinc-500">
-          Room <span className="font-mono">{room}</span>
-        </p>
-      </div>
+    <div className="flex flex-1 flex-col items-center justify-center bg-zinc-50 px-6 py-16 dark:bg-zinc-950">
+      <div className="w-full max-w-sm">
+        <div className="flex flex-col items-center text-center">
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-sm shadow-indigo-600/20">
+            <BroadcastIcon className="h-5 w-5" />
+          </div>
+          <h1 className="mt-4 text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
+            {webinarTitle ?? "Watch webinar"}
+          </h1>
+          <p className="mt-1 font-mono text-xs text-zinc-400">room · {room}</p>
+        </div>
 
-      <form onSubmit={joinAsViewer} className="flex w-full max-w-sm flex-col gap-3">
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Your name"
-          className="h-12 rounded-full border border-zinc-300 bg-white px-5 text-black outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-50"
-        />
-        <button
-          type="submit"
-          disabled={loading}
-          className="h-12 rounded-full bg-foreground px-5 font-medium text-background transition-colors hover:bg-[#383838] disabled:opacity-50 dark:hover:bg-[#ccc]"
-        >
-          {loading ? "Joining..." : "Join as viewer"}
-        </button>
-        {error && <p className="text-sm text-red-500">{error}</p>}
-      </form>
+        <div className="mt-8 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+          <form onSubmit={joinAsViewer} className="flex flex-col gap-3">
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Your name"
+              className="h-11 rounded-lg border border-zinc-200 bg-zinc-50 px-4 text-sm text-zinc-900 outline-none transition-colors focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-50 dark:focus:ring-indigo-950"
+            />
+            <button
+              type="submit"
+              disabled={loading}
+              className="h-11 rounded-lg bg-indigo-600 text-sm font-medium text-white transition-colors hover:bg-indigo-500 disabled:opacity-50"
+            >
+              {loading ? "Joining..." : "Join as viewer"}
+            </button>
+            {error && <p className="text-xs text-red-500">{error}</p>}
+          </form>
+        </div>
+      </div>
     </div>
   );
 }
