@@ -6,6 +6,7 @@ import {
   ParticipantTile,
   RoomAudioRenderer,
   StartAudio,
+  useRemoteParticipants,
   useTracks,
 } from "@livekit/components-react";
 import { Track } from "livekit-client";
@@ -22,11 +23,17 @@ function Stage() {
     [Track.Source.Camera, Track.Source.ScreenShare],
     { onlySubscribed: true }
   );
+  // Viewers are hidden participants, so the only remote participant a
+  // viewer can see is the host — this tells us whether they're connected
+  // at all, as opposed to connected but not sharing camera/mic yet.
+  const remoteParticipants = useRemoteParticipants();
 
   if (tracks.length === 0) {
     return (
-      <div className="flex h-full items-center justify-center text-zinc-400">
-        Waiting for the host to go live...
+      <div className="flex h-full items-center justify-center text-center text-zinc-400">
+        {remoteParticipants.length > 0
+          ? "The host is connected but hasn't turned on their camera or mic yet."
+          : "Waiting for the host to go live..."}
       </div>
     );
   }
