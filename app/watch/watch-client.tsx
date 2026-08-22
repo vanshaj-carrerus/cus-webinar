@@ -100,7 +100,7 @@ function ControlButton({
       aria-pressed={active}
       aria-label={label}
       title={label}
-      className={`flex h-9 w-9 items-center justify-center rounded-full transition-colors ${
+      className={`flex h-12 w-12 items-center justify-center rounded-full transition-colors [&_svg]:h-5 [&_svg]:w-5 ${
         danger
           ? "bg-red-600 text-white hover:bg-red-500"
           : active
@@ -150,7 +150,7 @@ function ViewerControlBar({
   };
 
   return (
-    <div className="absolute bottom-3 left-1/2 z-30 flex -translate-x-1/2 items-center gap-1 rounded-full bg-zinc-900/80 p-1.5 shadow-lg backdrop-blur">
+    <div className="absolute bottom-4 left-1/2 z-30 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-zinc-900/80 p-2 shadow-lg backdrop-blur">
       <ControlButton
         icon={muted ? <MicOffIcon /> : <MicIcon />}
         label={muted ? "Unmute" : "Mute"}
@@ -183,9 +183,9 @@ function ViewerControlBar({
           </div>
         )}
       </div>
-      <div className="mx-1 h-5 w-px bg-white/15" />
+      <div className="mx-1.5 h-6 w-px bg-white/15" />
       <DisconnectButton>
-        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-red-600 text-white hover:bg-red-500">
+        <span className="flex h-12 w-12 items-center justify-center rounded-full bg-red-600 text-white hover:bg-red-500 [&_svg]:h-5 [&_svg]:w-5">
           <LeaveIcon />
         </span>
       </DisconnectButton>
