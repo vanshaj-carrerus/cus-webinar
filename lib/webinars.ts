@@ -1,4 +1,4 @@
-import clientPromise from "./mongodb";
+import getMongoClient from "./mongodb";
 
 export type WebinarStatus = "scheduled" | "live" | "ended";
 
@@ -26,7 +26,7 @@ function toWebinar(doc: WebinarDoc): Webinar {
 }
 
 async function getCollection() {
-  const client = await clientPromise;
+  const client = await getMongoClient();
   // Explicit db name so this works even if MONGODB_URI doesn't include one
   // (e.g. Atlas connection strings copied from the dashboard usually don't).
   return client.db("webinar_portal").collection<WebinarDoc>("webinars");
