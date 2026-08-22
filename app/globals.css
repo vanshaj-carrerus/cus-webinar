@@ -1,5 +1,11 @@
 @import "tailwindcss";
 
+/* Opt-in (class-based) dark mode instead of Tailwind's default, which
+   follows the OS's prefers-color-scheme automatically. There's no theme
+   toggle yet, so nothing ever adds a "dark" class — the app always
+   renders light until one is built. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
@@ -10,13 +16,6 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {
