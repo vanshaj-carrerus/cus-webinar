@@ -195,6 +195,16 @@ export function TrashIcon({ className = base }: IconProps) {
   );
 }
 
+export function ScreenShareIcon({ className = base }: IconProps) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className={className}>
+      <rect x="2" y="4" width="16" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.6" />
+      <path d="M7 17h6M10 14v3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <path d="M10 6.5v5M7.5 9l2.5-2.5L12.5 9" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 export function BroadcastIcon({ className = base }: IconProps) {
   return (
     <svg viewBox="0 0 20 20" fill="none" className={className}>

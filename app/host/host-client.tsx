@@ -1,11 +1,94 @@
 "use client";
 
-import { LiveKitRoom, VideoConference } from "@livekit/components-react";
+import {
+  DisconnectButton,
+  LiveKitRoom,
+  RoomAudioRenderer,
+  StartAudio,
+  useLocalParticipant,
+} from "@livekit/components-react";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import ParticipantCount from "../participant-count";
 import { useOrigin } from "../use-origin";
-import { BroadcastIcon, MicIcon, MicOffIcon, VideoIcon, VideoOffIcon } from "../icons";
+import { Stage } from "../video-stage";
+import { ChatPanel } from "../chat-panel";
+import { ControlButton } from "../control-button";
+import {
+  BroadcastIcon,
+  ChatIcon,
+  LeaveIcon,
+  MaximizeIcon,
+  MicIcon,
+  MicOffIcon,
+  MinimizeIcon,
+  ScreenShareIcon,
+  VideoIcon,
+  VideoOffIcon,
+} from "../icons";
+
+function HostControlBar({
+  chatOpen,
+  onToggleChat,
+  fullscreenTarget,
+}: {
+  chatOpen: boolean;
+  onToggleChat: () => void;
+  fullscreenTarget: React.RefObject<HTMLElement | null>;
+}) {
+  const { localParticipant, isCameraEnabled, isMicrophoneEnabled, isScreenShareEnabled } =
+    useLocalParticipant();
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    const handler = () => setIsFullscreen(Boolean(document.fullscreenElement));
+    document.addEventListener("fullscreenchange", handler);
+    return () => document.removeEventListener("fullscreenchange", handler);
+  }, []);
+
+  const toggleFullscreen = () => {
+    if (document.fullscreenElement) {
+      document.exitFullscreen();
+    } else {
+      fullscreenTarget.current?.requestFullscreen();
+    }
+  };
+
+  return (
+    <div className="absolute bottom-4 left-1/2 z-30 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-zinc-900/80 p-2 shadow-lg backdrop-blur">
+      <ControlButton
+        icon={isMicrophoneEnabled ? <MicIcon /> : <MicOffIcon />}
+        label={isMicrophoneEnabled ? "Mute your mic" : "Unmute your mic"}
+        active={!isMicrophoneEnabled}
+        onClick={() => localParticipant.setMicrophoneEnabled(!isMicrophoneEnabled)}
+      />
+      <ControlButton
+        icon={isCameraEnabled ? <VideoIcon /> : <VideoOffIcon />}
+        label={isCameraEnabled ? "Turn off camera" : "Turn on camera"}
+        active={!isCameraEnabled}
+        onClick={() => localParticipant.setCameraEnabled(!isCameraEnabled)}
+      />
+      <ControlButton
+        icon={<ScreenShareIcon />}
+        label={isScreenShareEnabled ? "Stop sharing screen" : "Share screen"}
+        active={isScreenShareEnabled}
+        onClick={() => localParticipant.setScreenShareEnabled(!isScreenShareEnabled)}
+      />
+      <ControlButton
+        icon={isFullscreen ? <MinimizeIcon /> : <MaximizeIcon />}
+        label={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+        onClick={toggleFullscreen}
+      />
+      <ControlButton icon={<ChatIcon />} label="Chat" active={chatOpen} onClick={onToggleChat} />
+      <div className="mx-1.5 h-6 w-px bg-white/15" />
+      <DisconnectButton>
+        <span className="flex h-12 w-12 items-center justify-center rounded-full bg-red-600 text-white hover:bg-red-500 [&_svg]:h-5 [&_svg]:w-5">
+          <LeaveIcon />
+        </span>
+      </DisconnectButton>
+    </div>
+  );
+}
 
 type TokenResponse = {
   token: string;
@@ -35,6 +118,7 @@ export default function HostClient() {
   const searchParams = useSearchParams();
   const room = searchParams.get("room") ?? "";
   const origin = useOrigin();
+  const fullscreenTarget = useRef<HTMLDivElement>(null);
 
   const [name, setName] = useState("");
   const [webinarTitle, setWebinarTitle] = useState<string | null>(null);
@@ -44,6 +128,7 @@ export default function HostClient() {
   const [loading, setLoading] = useState(false);
   const [camOn, setCamOn] = useState(true);
   const [micOn, setMicOn] = useState(true);
+  const [chatOpen, setChatOpen] = useState(true);
 
   useEffect(() => {
     if (!room) return;
@@ -125,7 +210,7 @@ export default function HostClient() {
         audio={micOn}
         video={camOn}
         data-lk-theme="default"
-        style={{ height: "100vh", position: "relative" }}
+        style={{ height: "100vh" }}
         onConnected={() => {
           if (!webinarExists) return;
           fetch(`/api/webinars/${room}`, {
@@ -145,10 +230,22 @@ export default function HostClient() {
           }).catch(() => {});
         }}
       >
-        <div className="absolute left-3 top-3 z-10">
-          <ParticipantCount room={room} canManage />
+        <div ref={fullscreenTarget} className="relative flex h-full bg-black">
+          <div className="relative min-w-0 flex-1">
+            <div className="absolute left-3 top-3 z-10">
+              <ParticipantCount room={room} canManage />
+            </div>
+            <Stage emptyState="Turn on your camera or share your screen to go live." />
+            <HostControlBar
+              chatOpen={chatOpen}
+              onToggleChat={() => setChatOpen((v) => !v)}
+              fullscreenTarget={fullscreenTarget}
+            />
+          </div>
+          {chatOpen && <ChatPanel />}
         </div>
-        <VideoConference />
+        <RoomAudioRenderer />
+        <StartAudio label="Click to enable sound" />
       </LiveKitRoom>
     );
   }

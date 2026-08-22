@@ -1,22 +1,21 @@
 "use client";
 
 import {
-  Chat,
   DisconnectButton,
-  GridLayout,
   LiveKitRoom,
   MediaDeviceSelect,
-  ParticipantTile,
   RoomAudioRenderer,
   StartAudio,
   useLocalParticipant,
   useRemoteParticipants,
-  useTracks,
 } from "@livekit/components-react";
-import { ParticipantEvent, Track } from "livekit-client";
+import { ParticipantEvent } from "livekit-client";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import ParticipantCount from "../participant-count";
+import { Stage } from "../video-stage";
+import { ChatPanel } from "../chat-panel";
+import { ControlButton } from "../control-button";
 import {
   BroadcastIcon,
   ChatIcon,
@@ -35,51 +34,14 @@ type TokenResponse = {
   url: string;
 };
 
-function Stage() {
-  const tracks = useTracks(
-    [Track.Source.Camera, Track.Source.ScreenShare],
-    { onlySubscribed: true }
-  );
-  // Viewers are hidden participants, so the only remote participant a
-  // viewer can see is the host — this tells us whether they're connected
-  // at all, as opposed to connected but not sharing camera/mic yet.
+// Viewers are hidden participants, so the only remote participant a viewer
+// can see is the host — this tells us whether they're connected at all, as
+// opposed to connected but not sharing camera/mic yet.
+function WaitingForHost() {
   const remoteParticipants = useRemoteParticipants();
-
-  if (tracks.length === 0) {
-    return (
-      <div className="flex h-full items-center justify-center text-center text-sm text-zinc-400">
-        {remoteParticipants.length > 0
-          ? "The host is connected but hasn't turned on their camera or mic yet."
-          : "Waiting for the host to go live..."}
-      </div>
-    );
-  }
-
-  // When the host is both screen-sharing and on camera, show the screen
-  // share filling the stage with the camera as a small picture-in-picture
-  // overlay (like most webinar platforms) — a side-by-side split badly
-  // letterboxes widescreen screen share content. With just one track, it
-  // fills the stage on its own.
-  const screenShareTrack = tracks.find((t) => t.source === Track.Source.ScreenShare);
-  if (!screenShareTrack || tracks.length === 1) {
-    return (
-      <GridLayout tracks={tracks} style={{ height: "100%" }}>
-        <ParticipantTile />
-      </GridLayout>
-    );
-  }
-
-  const cameraTrack = tracks.find((t) => t !== screenShareTrack);
-  return (
-    <div className="relative h-full w-full">
-      <ParticipantTile trackRef={screenShareTrack} className="h-full w-full" />
-      {cameraTrack && (
-        <div className="absolute right-4 top-4 h-32 w-48 overflow-hidden rounded-lg border-2 border-white/20 shadow-lg">
-          <ParticipantTile trackRef={cameraTrack} className="h-full w-full" />
-        </div>
-      )}
-    </div>
-  );
+  return remoteParticipants.length > 0
+    ? "The host is connected but hasn't turned on their camera or mic yet."
+    : "Waiting for the host to go live...";
 }
 
 // Listens for the host promoting this viewer to a speaker (a server-side
@@ -160,38 +122,6 @@ function SpeakerInvite() {
         {isCameraEnabled ? <VideoIcon className="h-3.5 w-3.5" /> : <VideoOffIcon className="h-3.5 w-3.5" />}
       </button>
     </div>
-  );
-}
-
-function ControlButton({
-  icon,
-  label,
-  active,
-  danger,
-  onClick,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  active?: boolean;
-  danger?: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      aria-pressed={active}
-      aria-label={label}
-      title={label}
-      className={`flex h-12 w-12 items-center justify-center rounded-full transition-colors [&_svg]:h-5 [&_svg]:w-5 ${
-        danger
-          ? "bg-red-600 text-white hover:bg-red-500"
-          : active
-            ? "bg-white text-zinc-900"
-            : "text-zinc-200 hover:bg-white/15"
-      }`}
-    >
-      {icon}
-    </button>
   );
 }
 
@@ -349,7 +279,7 @@ export default function WatchClient() {
                 Video hidden — audio only
               </div>
             ) : (
-              <Stage />
+              <Stage emptyState={<WaitingForHost />} />
             )}
             <ViewerControlBar
               chatOpen={chatOpen}
@@ -359,28 +289,7 @@ export default function WatchClient() {
               fullscreenTarget={fullscreenTarget}
             />
           </div>
-          {chatOpen && (
-            // Full-screen overlay on mobile (there's no room to split the
-            // screen with a usable video), a fixed-width side panel on
-            // larger screens where both can fit side by side.
-            <div className="absolute inset-0 z-20 bg-black sm:static sm:inset-auto sm:z-auto sm:w-80 sm:shrink-0 sm:border-l sm:border-zinc-800">
-              {/* Chat's own "lk-chat" class hardcodes `position: fixed; top:
-                  0; right: 0`, which makes it float independently of this
-                  wrapper (and overflow the viewport) instead of filling it.
-                  Override via inline style, which always wins the cascade. */}
-              <Chat
-                style={{
-                  position: "static",
-                  top: "auto",
-                  right: "auto",
-                  bottom: "auto",
-                  width: "100%",
-                  maxWidth: "100%",
-                  height: "100%",
-                }}
-              />
-            </div>
-          )}
+          {chatOpen && <ChatPanel />}
         </div>
         <RoomAudioRenderer />
         <StartAudio label="Click to enable sound" />
