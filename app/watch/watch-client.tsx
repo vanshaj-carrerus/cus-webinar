@@ -1,6 +1,10 @@
 "use client";
 
 import {
+  CarouselLayout,
+  Chat,
+  FocusLayout,
+  FocusLayoutContainer,
   GridLayout,
   LiveKitRoom,
   ParticipantTile,
@@ -12,6 +16,7 @@ import {
 import { Track } from "livekit-client";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
+import ParticipantCount from "../participant-count";
 
 type TokenResponse = {
   token: string;
@@ -38,10 +43,26 @@ function Stage() {
     );
   }
 
+  // When the host is both screen-sharing and on camera, show the screen
+  // share large with the camera in a small strip — same layout as most
+  // webinar platforms. With just one track, it fills the stage.
+  const screenShareTrack = tracks.find((t) => t.source === Track.Source.ScreenShare);
+  if (!screenShareTrack || tracks.length === 1) {
+    return (
+      <GridLayout tracks={tracks} style={{ height: "100%" }}>
+        <ParticipantTile />
+      </GridLayout>
+    );
+  }
+
+  const carouselTracks = tracks.filter((t) => t !== screenShareTrack);
   return (
-    <GridLayout tracks={tracks} style={{ height: "100%" }}>
-      <ParticipantTile />
-    </GridLayout>
+    <FocusLayoutContainer style={{ height: "100%" }}>
+      <CarouselLayout tracks={carouselTracks}>
+        <ParticipantTile />
+      </CarouselLayout>
+      <FocusLayout trackRef={screenShareTrack} />
+    </FocusLayoutContainer>
   );
 }
 
@@ -54,6 +75,7 @@ export default function WatchClient() {
   const [connection, setConnection] = useState<TokenResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [chatOpen, setChatOpen] = useState(true);
 
   useEffect(() => {
     if (!room) return;
@@ -104,7 +126,25 @@ export default function WatchClient() {
         data-lk-theme="default"
         style={{ height: "100vh" }}
       >
-        <Stage />
+        <div className="flex h-full">
+          <div className="relative min-w-0 flex-1">
+            <div className="absolute left-3 top-3 z-10 flex items-center gap-2">
+              <ParticipantCount room={room} />
+            </div>
+            <button
+              onClick={() => setChatOpen((v) => !v)}
+              className="absolute right-3 top-3 z-10 rounded-full bg-black/60 px-3 py-1 text-xs font-medium text-white backdrop-blur sm:hidden"
+            >
+              {chatOpen ? "Hide chat" : "Show chat"}
+            </button>
+            <Stage />
+          </div>
+          {chatOpen && (
+            <div className="w-full max-w-[320px] shrink-0 border-l border-zinc-800">
+              <Chat style={{ height: "100%" }} />
+            </div>
+          )}
+        </div>
         <RoomAudioRenderer />
         <StartAudio label="Click to enable sound" />
       </LiveKitRoom>

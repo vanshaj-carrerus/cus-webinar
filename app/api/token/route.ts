@@ -35,10 +35,11 @@ export async function POST(request: NextRequest) {
   at.addGrant({
     room,
     roomJoin: true,
-    // Host can publish camera/mic and see the participant list.
-    // Viewer is subscribe-only and hidden from the participant list.
+    // Host can publish camera/mic and is visible in the participant list.
+    // Viewer is subscribe-only for media and hidden from the participant
+    // list, but can still send/receive chat (data channel).
     canPublish: role === "host",
-    canPublishData: role === "host",
+    canPublishData: true,
     canSubscribe: true,
     hidden: role === "viewer",
   });

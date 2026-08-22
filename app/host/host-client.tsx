@@ -3,6 +3,7 @@
 import { LiveKitRoom, VideoConference } from "@livekit/components-react";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
+import ParticipantCount from "../participant-count";
 
 type TokenResponse = {
   token: string;
@@ -72,7 +73,7 @@ export default function HostClient() {
         audio={micOn}
         video={camOn}
         data-lk-theme="default"
-        style={{ height: "100vh" }}
+        style={{ height: "100vh", position: "relative" }}
         onConnected={() => {
           if (!webinarExists) return;
           fetch(`/api/webinars/${room}`, {
@@ -91,6 +92,9 @@ export default function HostClient() {
           }).catch(() => {});
         }}
       >
+        <div className="absolute left-3 top-3 z-10">
+          <ParticipantCount room={room} />
+        </div>
         <VideoConference />
       </LiveKitRoom>
     );
