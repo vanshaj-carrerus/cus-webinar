@@ -24,6 +24,7 @@ import {
   MicIcon,
   MicOffIcon,
   MinimizeIcon,
+  ScreenShareIcon,
   SettingsIcon,
   VideoIcon,
   VideoOffIcon,
@@ -51,7 +52,8 @@ function WaitingForHost() {
 // event) and prompts them to turn on their camera/mic. If the host later
 // revokes it, their tracks are stopped automatically.
 function SpeakerInvite() {
-  const { localParticipant, isCameraEnabled, isMicrophoneEnabled } = useLocalParticipant();
+  const { localParticipant, isCameraEnabled, isMicrophoneEnabled, isScreenShareEnabled } =
+    useLocalParticipant();
   const [canPublish, setCanPublish] = useState(
     () => localParticipant.permissions?.canPublish ?? false
   );
@@ -122,6 +124,15 @@ function SpeakerInvite() {
         className="flex h-6 w-6 items-center justify-center rounded-full text-emerald-200 hover:bg-white/10"
       >
         {isCameraEnabled ? <VideoIcon className="h-3.5 w-3.5" /> : <VideoOffIcon className="h-3.5 w-3.5" />}
+      </button>
+      <button
+        onClick={() => localParticipant.setScreenShareEnabled(!isScreenShareEnabled)}
+        aria-label={isScreenShareEnabled ? "Stop sharing your screen" : "Share your screen"}
+        className={`flex h-6 w-6 items-center justify-center rounded-full hover:bg-white/10 ${
+          isScreenShareEnabled ? "text-white" : "text-emerald-200"
+        }`}
+      >
+        <ScreenShareIcon className="h-3.5 w-3.5" />
       </button>
     </div>
   );
