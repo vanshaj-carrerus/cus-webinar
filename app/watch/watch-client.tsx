@@ -5,6 +5,7 @@ import {
   DisconnectButton,
   GridLayout,
   LiveKitRoom,
+  MediaDeviceSelect,
   ParticipantTile,
   RoomAudioRenderer,
   StartAudio,
@@ -13,7 +14,7 @@ import {
 } from "@livekit/components-react";
 import { Track } from "livekit-client";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import ParticipantCount from "../participant-count";
 
 type TokenResponse = {
@@ -68,9 +69,106 @@ function Stage() {
   );
 }
 
+function ControlButton({
+  label,
+  active,
+  onClick,
+  danger,
+}: {
+  label: string;
+  active?: boolean;
+  onClick: () => void;
+  danger?: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      aria-pressed={active}
+      className={`h-9 rounded-full px-3 text-xs font-medium transition-colors ${
+        danger
+          ? "bg-red-600 text-white hover:bg-red-500"
+          : active
+            ? "bg-white text-black"
+            : "bg-white/10 text-white hover:bg-white/20"
+      }`}
+    >
+      {label}
+    </button>
+  );
+}
+
+function ViewerControlBar({
+  chatOpen,
+  onToggleChat,
+  videoHidden,
+  onToggleVideo,
+  fullscreenTarget,
+}: {
+  chatOpen: boolean;
+  onToggleChat: () => void;
+  videoHidden: boolean;
+  onToggleVideo: () => void;
+  fullscreenTarget: React.RefObject<HTMLElement | null>;
+}) {
+  const remoteParticipants = useRemoteParticipants();
+  const [muted, setMuted] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
+  useEffect(() => {
+    remoteParticipants.forEach((p) => p.setVolume(muted ? 0 : 1));
+  }, [muted, remoteParticipants]);
+
+  useEffect(() => {
+    const handler = () => setIsFullscreen(Boolean(document.fullscreenElement));
+    document.addEventListener("fullscreenchange", handler);
+    return () => document.removeEventListener("fullscreenchange", handler);
+  }, []);
+
+  const toggleFullscreen = () => {
+    if (document.fullscreenElement) {
+      document.exitFullscreen();
+    } else {
+      fullscreenTarget.current?.requestFullscreen();
+    }
+  };
+
+  return (
+    <div className="absolute bottom-3 left-1/2 z-30 flex -translate-x-1/2 items-center gap-2 rounded-full bg-black/70 px-3 py-2 backdrop-blur">
+      <ControlButton label={muted ? "Unmute" : "Mute"} active={muted} onClick={() => setMuted((v) => !v)} />
+      <ControlButton
+        label={videoHidden ? "Show video" : "Hide video"}
+        active={videoHidden}
+        onClick={onToggleVideo}
+      />
+      <ControlButton
+        label={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+        active={isFullscreen}
+        onClick={toggleFullscreen}
+      />
+      <ControlButton label="Chat" active={chatOpen} onClick={onToggleChat} />
+      <div className="relative">
+        <ControlButton label="Settings" active={settingsOpen} onClick={() => setSettingsOpen((v) => !v)} />
+        {settingsOpen && (
+          <div className="absolute bottom-full left-1/2 mb-2 w-56 -translate-x-1/2 rounded-lg bg-black/90 p-3 text-white shadow-lg backdrop-blur">
+            <p className="mb-2 text-xs font-medium text-zinc-400">Speaker</p>
+            <MediaDeviceSelect kind="audiooutput" />
+          </div>
+        )}
+      </div>
+      <DisconnectButton>
+        <span className="flex h-9 items-center rounded-full bg-red-600 px-3 text-xs font-medium text-white hover:bg-red-500">
+          Leave
+        </span>
+      </DisconnectButton>
+    </div>
+  );
+}
+
 export default function WatchClient() {
   const searchParams = useSearchParams();
   const room = searchParams.get("room") ?? "";
+  const fullscreenTarget = useRef<HTMLDivElement>(null);
 
   const [name, setName] = useState("");
   const [webinarTitle, setWebinarTitle] = useState<string | null>(null);
@@ -78,6 +176,7 @@ export default function WatchClient() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [chatOpen, setChatOpen] = useState(true);
+  const [videoHidden, setVideoHidden] = useState(false);
 
   useEffect(() => {
     if (!room) return;
@@ -129,33 +228,46 @@ export default function WatchClient() {
         style={{ height: "100vh" }}
         onDisconnected={() => setConnection(null)}
       >
-        <div className="relative flex h-full">
+        <div ref={fullscreenTarget} className="relative flex h-full bg-black">
           <div className="relative min-w-0 flex-1">
             <div className="absolute left-3 top-3 z-10 flex items-center gap-2">
               <ParticipantCount room={room} />
             </div>
-            <button
-              onClick={() => setChatOpen((v) => !v)}
-              className="absolute right-3 top-3 z-30 rounded-full bg-black/60 px-3 py-1 text-xs font-medium text-white backdrop-blur sm:hidden"
-            >
-              {chatOpen ? "Hide chat" : "Show chat"}
-            </button>
-            {/* Wrapped in a plain div: DisconnectButton's own "lk-disconnect-button"
-                class sets `position: relative`, which wins the cascade over an
-                `absolute` utility class applied directly to the button itself. */}
-            <div className="absolute bottom-3 left-3 z-30">
-              <DisconnectButton className="rounded-full bg-red-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-red-500">
-                Leave
-              </DisconnectButton>
-            </div>
-            <Stage />
+            {videoHidden ? (
+              <div className="flex h-full items-center justify-center text-zinc-400">
+                Video hidden — audio only
+              </div>
+            ) : (
+              <Stage />
+            )}
+            <ViewerControlBar
+              chatOpen={chatOpen}
+              onToggleChat={() => setChatOpen((v) => !v)}
+              videoHidden={videoHidden}
+              onToggleVideo={() => setVideoHidden((v) => !v)}
+              fullscreenTarget={fullscreenTarget}
+            />
           </div>
           {chatOpen && (
             // Full-screen overlay on mobile (there's no room to split the
             // screen with a usable video), a fixed-width side panel on
             // larger screens where both can fit side by side.
             <div className="absolute inset-0 z-20 bg-black sm:static sm:inset-auto sm:z-auto sm:w-80 sm:shrink-0 sm:border-l sm:border-zinc-800">
-              <Chat style={{ height: "100%" }} />
+              {/* Chat's own "lk-chat" class hardcodes `position: fixed; top:
+                  0; right: 0`, which makes it float independently of this
+                  wrapper (and overflow the viewport) instead of filling it.
+                  Override via inline style, which always wins the cascade. */}
+              <Chat
+                style={{
+                  position: "static",
+                  top: "auto",
+                  right: "auto",
+                  bottom: "auto",
+                  width: "100%",
+                  maxWidth: "100%",
+                  height: "100%",
+                }}
+              />
             </div>
           )}
         </div>
