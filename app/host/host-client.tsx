@@ -15,15 +15,21 @@ export default function HostClient() {
 
   const [name, setName] = useState("");
   const [webinarTitle, setWebinarTitle] = useState<string | null>(null);
+  const [webinarExists, setWebinarExists] = useState(false);
   const [connection, setConnection] = useState<TokenResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [camOn, setCamOn] = useState(true);
+  const [micOn, setMicOn] = useState(true);
 
   useEffect(() => {
     if (!room) return;
     fetch(`/api/webinars/${room}`)
       .then((res) => (res.ok ? res.json() : null))
-      .then((data) => setWebinarTitle(data?.webinar?.title ?? null))
+      .then((data) => {
+        setWebinarTitle(data?.webinar?.title ?? null);
+        setWebinarExists(Boolean(data?.webinar));
+      })
       .catch(() => {});
   }, [room]);
 
@@ -63,11 +69,12 @@ export default function HostClient() {
         token={connection.token}
         serverUrl={connection.url}
         connect
-        audio
-        video
+        audio={micOn}
+        video={camOn}
         data-lk-theme="default"
         style={{ height: "100vh" }}
         onConnected={() => {
+          if (!webinarExists) return;
           fetch(`/api/webinars/${room}`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
@@ -76,6 +83,7 @@ export default function HostClient() {
         }}
         onDisconnected={() => {
           setConnection(null);
+          if (!webinarExists) return;
           fetch(`/api/webinars/${room}`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
@@ -97,9 +105,16 @@ export default function HostClient() {
         </p>
         <p className="mt-1 text-sm text-zinc-500">
           Share this link with viewers:{" "}
-          <span className="font-mono break-all">
-            {typeof window !== "undefined" ? `${window.location.origin}/watch?room=${room}` : ""}
-          </span>
+          {typeof window !== "undefined" && (
+            <a
+              href={`${window.location.origin}/watch?room=${room}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-mono break-all text-blue-600 underline hover:text-blue-500 dark:text-blue-400"
+            >
+              {`${window.location.origin}/watch?room=${room}`}
+            </a>
+          )}
         </p>
       </div>
 
@@ -110,6 +125,32 @@ export default function HostClient() {
           placeholder="Your name"
           className="h-12 rounded-full border border-zinc-300 bg-white px-5 text-black outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-50"
         />
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => setCamOn((v) => !v)}
+            aria-pressed={camOn}
+            className={`h-11 flex-1 rounded-full border px-4 text-sm font-medium transition-colors ${
+              camOn
+                ? "border-zinc-300 hover:bg-black/[.04] dark:border-zinc-700 dark:hover:bg-[#1a1a1a]"
+                : "border-red-300 text-red-600 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950/40"
+            }`}
+          >
+            Camera: {camOn ? "On" : "Off"}
+          </button>
+          <button
+            type="button"
+            onClick={() => setMicOn((v) => !v)}
+            aria-pressed={micOn}
+            className={`h-11 flex-1 rounded-full border px-4 text-sm font-medium transition-colors ${
+              micOn
+                ? "border-zinc-300 hover:bg-black/[.04] dark:border-zinc-700 dark:hover:bg-[#1a1a1a]"
+                : "border-red-300 text-red-600 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950/40"
+            }`}
+          >
+            Mic: {micOn ? "On" : "Off"}
+          </button>
+        </div>
         <button
           type="submit"
           disabled={loading}

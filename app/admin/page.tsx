@@ -13,6 +13,21 @@ const STATUS_STYLES: Record<Webinar["status"], string> = {
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
+// A <input type="datetime-local"> value ("YYYY-MM-DDTHH:mm") has no timezone
+// of its own — since scheduling is always meant in Indian time, interpret it
+// as IST (UTC+5:30, no DST) regardless of the admin's browser timezone.
+function istInputToIso(value: string): string {
+  return new Date(`${value}:00+05:30`).toISOString();
+}
+
+function formatIST(iso: string): string {
+  return `${new Date(iso).toLocaleString("en-IN", {
+    timeZone: "Asia/Kolkata",
+    dateStyle: "medium",
+    timeStyle: "short",
+  })} IST`;
+}
+
 export default function AdminPage() {
   const { data, mutate } = useSWR<{ webinars: Webinar[] }>("/api/webinars", fetcher, {
     refreshInterval: 5000,
@@ -20,9 +35,11 @@ export default function AdminPage() {
   const webinars = data?.webinars ?? [];
 
   const [title, setTitle] = useState("");
+  const [scheduledAt, setScheduledAt] = useState("");
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [closingId, setClosingId] = useState<string | null>(null);
 
   const createWebinar = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,10 +50,14 @@ export default function AdminPage() {
       const res = await fetch("/api/webinars", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: title.trim() }),
+        body: JSON.stringify({
+          title: title.trim(),
+          scheduledAt: scheduledAt ? istInputToIso(scheduledAt) : undefined,
+        }),
       });
       if (!res.ok) throw new Error((await res.json()).error ?? "Failed to create webinar");
       setTitle("");
+      setScheduledAt("");
       await mutate();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
@@ -48,6 +69,19 @@ export default function AdminPage() {
   const removeWebinar = async (id: string) => {
     await fetch(`/api/webinars/${id}`, { method: "DELETE" });
     await mutate();
+  };
+
+  const closeMeeting = async (id: string) => {
+    if (!window.confirm("Close this meeting? Everyone currently in it will be disconnected.")) {
+      return;
+    }
+    setClosingId(id);
+    try {
+      await fetch(`/api/webinars/${id}/close`, { method: "POST" });
+      await mutate();
+    } finally {
+      setClosingId(null);
+    }
   };
 
   const copyWatchLink = async (id: string) => {
@@ -64,12 +98,19 @@ export default function AdminPage() {
         <p className="mt-1 text-zinc-500">Create a webinar, then go live as the host.</p>
       </div>
 
-      <form onSubmit={createWebinar} className="flex gap-2">
+      <form onSubmit={createWebinar} className="flex flex-col gap-3 sm:flex-row">
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="Webinar title"
           className="h-12 flex-1 rounded-full border border-zinc-300 bg-white px-5 text-black outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-50"
+        />
+        <input
+          type="datetime-local"
+          value={scheduledAt}
+          onChange={(e) => setScheduledAt(e.target.value)}
+          title="Scheduled time (IST)"
+          className="h-12 rounded-full border border-zinc-300 bg-white px-5 text-black outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-50"
         />
         <button
           type="submit"
@@ -79,6 +120,9 @@ export default function AdminPage() {
           {creating ? "Creating..." : "Create webinar"}
         </button>
       </form>
+      <p className="-mt-6 text-xs text-zinc-500">
+        Scheduled time is treated as Indian Standard Time (IST), regardless of your browser&apos;s timezone.
+      </p>
       {error && <p className="-mt-4 text-sm text-red-500">{error}</p>}
 
       <div className="flex flex-col gap-3">
@@ -101,6 +145,35 @@ export default function AdminPage() {
                 </span>
               </div>
               <p className="mt-0.5 font-mono text-xs text-zinc-500">room: {webinar.id}</p>
+              {webinar.scheduledAt && (
+                <p className="mt-0.5 text-xs text-zinc-500">
+                  Scheduled: {formatIST(webinar.scheduledAt)}
+                </p>
+              )}
+              <p className="mt-1.5 text-xs text-zinc-500">
+                Join as host:{" "}
+                <a
+                  href={`/host?room=${webinar.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="break-all font-mono text-blue-600 underline hover:text-blue-500 dark:text-blue-400"
+                >
+                  {typeof window !== "undefined" ? window.location.origin : ""}/host?room=
+                  {webinar.id}
+                </a>
+              </p>
+              <p className="mt-0.5 text-xs text-zinc-500">
+                Join as participant:{" "}
+                <a
+                  href={`/watch?room=${webinar.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="break-all font-mono text-blue-600 underline hover:text-blue-500 dark:text-blue-400"
+                >
+                  {typeof window !== "undefined" ? window.location.origin : ""}/watch?room=
+                  {webinar.id}
+                </a>
+              </p>
             </div>
 
             <div className="flex flex-wrap gap-2">
@@ -114,8 +187,17 @@ export default function AdminPage() {
                 onClick={() => copyWatchLink(webinar.id)}
                 className="flex h-10 items-center rounded-full border border-zinc-300 px-4 text-sm font-medium transition-colors hover:bg-black/[.04] dark:border-zinc-700 dark:hover:bg-[#1a1a1a]"
               >
-                {copiedId === webinar.id ? "Link copied" : "Copy viewer link"}
+                {copiedId === webinar.id ? "Link copied" : "Copy participant link"}
               </button>
+              {webinar.status !== "ended" && (
+                <button
+                  onClick={() => closeMeeting(webinar.id)}
+                  disabled={closingId === webinar.id}
+                  className="flex h-10 items-center rounded-full border border-red-300 px-4 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950/40"
+                >
+                  {closingId === webinar.id ? "Closing..." : "Close meeting"}
+                </button>
+              )}
               <button
                 onClick={() => removeWebinar(webinar.id)}
                 className="flex h-10 items-center rounded-full px-4 text-sm font-medium text-red-500 transition-colors hover:bg-red-50 dark:hover:bg-red-950/40"

@@ -16,13 +16,18 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null);
   const title: string | undefined = body?.title;
+  const scheduledAt: string | undefined = body?.scheduledAt;
 
   if (!title || !title.trim()) {
     return NextResponse.json({ error: "`title` is required" }, { status: 400 });
   }
 
+  if (scheduledAt && Number.isNaN(Date.parse(scheduledAt))) {
+    return NextResponse.json({ error: "`scheduledAt` must be a valid date" }, { status: 400 });
+  }
+
   try {
-    const webinar = await createWebinar(title.trim());
+    const webinar = await createWebinar(title.trim(), scheduledAt);
     return NextResponse.json({ webinar }, { status: 201 });
   } catch (err) {
     return NextResponse.json(

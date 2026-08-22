@@ -7,6 +7,7 @@ export interface Webinar {
   title: string;
   status: WebinarStatus;
   createdAt: string;
+  scheduledAt?: string;
   startedAt?: string;
   endedAt?: string;
 }
@@ -16,6 +17,7 @@ interface WebinarDoc {
   title: string;
   status: WebinarStatus;
   createdAt: string;
+  scheduledAt?: string;
   startedAt?: string;
   endedAt?: string;
 }
@@ -44,13 +46,14 @@ export async function getWebinar(id: string): Promise<Webinar | undefined> {
   return doc ? toWebinar(doc) : undefined;
 }
 
-export async function createWebinar(title: string): Promise<Webinar> {
+export async function createWebinar(title: string, scheduledAt?: string): Promise<Webinar> {
   const collection = await getCollection();
   const doc: WebinarDoc = {
     _id: crypto.randomUUID().slice(0, 8),
     title,
     status: "scheduled",
     createdAt: new Date().toISOString(),
+    ...(scheduledAt ? { scheduledAt } : {}),
   };
   await collection.insertOne(doc);
   return toWebinar(doc);
