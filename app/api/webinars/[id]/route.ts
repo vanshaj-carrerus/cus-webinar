@@ -3,16 +3,27 @@ import { deleteWebinar, getWebinar, updateWebinarStatus, WebinarStatus } from "@
 
 const VALID_STATUSES: WebinarStatus[] = ["scheduled", "live", "ended"];
 
+function dbErrorResponse(err: unknown) {
+  return NextResponse.json(
+    { error: err instanceof Error ? err.message : "Database error" },
+    { status: 500 }
+  );
+}
+
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const webinar = await getWebinar(id);
-  if (!webinar) {
-    return NextResponse.json({ error: "Webinar not found" }, { status: 404 });
+  try {
+    const webinar = await getWebinar(id);
+    if (!webinar) {
+      return NextResponse.json({ error: "Webinar not found" }, { status: 404 });
+    }
+    return NextResponse.json({ webinar });
+  } catch (err) {
+    return dbErrorResponse(err);
   }
-  return NextResponse.json({ webinar });
 }
 
 export async function PATCH(
@@ -30,11 +41,15 @@ export async function PATCH(
     );
   }
 
-  const webinar = await updateWebinarStatus(id, status);
-  if (!webinar) {
-    return NextResponse.json({ error: "Webinar not found" }, { status: 404 });
+  try {
+    const webinar = await updateWebinarStatus(id, status);
+    if (!webinar) {
+      return NextResponse.json({ error: "Webinar not found" }, { status: 404 });
+    }
+    return NextResponse.json({ webinar });
+  } catch (err) {
+    return dbErrorResponse(err);
   }
-  return NextResponse.json({ webinar });
 }
 
 export async function DELETE(
@@ -42,9 +57,13 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const ok = await deleteWebinar(id);
-  if (!ok) {
-    return NextResponse.json({ error: "Webinar not found" }, { status: 404 });
+  try {
+    const ok = await deleteWebinar(id);
+    if (!ok) {
+      return NextResponse.json({ error: "Webinar not found" }, { status: 404 });
+    }
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    return dbErrorResponse(err);
   }
-  return NextResponse.json({ ok: true });
 }
