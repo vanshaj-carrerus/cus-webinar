@@ -26,6 +26,8 @@ import {
   MinimizeIcon,
   ScreenShareIcon,
   SettingsIcon,
+  SpeakerIcon,
+  SpeakerOffIcon,
   VideoIcon,
   VideoOffIcon,
 } from "../icons";
@@ -49,18 +51,25 @@ function WaitingForHost() {
 
 // Listens for the host promoting this viewer to a speaker (a server-side
 // permission change, pushed live via LiveKit's ParticipantPermissionsChanged
-// event) and automatically turns on their camera/mic. If the host later
-// revokes it, their tracks are stopped automatically.
+// event) and asks them to allow or deny turning on their camera/mic. If the
+// host later revokes it, their tracks are stopped automatically.
 function SpeakerInvite() {
   const { localParticipant, isCameraEnabled, isMicrophoneEnabled, isScreenShareEnabled } =
     useLocalParticipant();
   const [canPublish, setCanPublish] = useState(
     () => localParticipant.permissions?.canPublish ?? false
   );
+  const [promptDismissed, setPromptDismissed] = useState(false);
 
   useEffect(() => {
     const handlePermissionsChanged = () => {
-      setCanPublish(localParticipant.permissions?.canPublish ?? false);
+      const next = localParticipant.permissions?.canPublish ?? false;
+      setCanPublish(next);
+      if (!next) {
+        localParticipant.setCameraEnabled(false).catch(() => {});
+        localParticipant.setMicrophoneEnabled(false).catch(() => {});
+        setPromptDismissed(false);
+      }
     };
     localParticipant.on(ParticipantEvent.ParticipantPermissionsChanged, handlePermissionsChanged);
     return () => {
@@ -68,19 +77,37 @@ function SpeakerInvite() {
     };
   }, [localParticipant]);
 
-  // Covers both the live invite (canPublish flips to true) and a page
-  // refresh where permission was already granted on mount.
-  useEffect(() => {
-    if (canPublish) {
-      localParticipant.setCameraEnabled(true).catch(() => {});
-      localParticipant.setMicrophoneEnabled(true).catch(() => {});
-    } else {
-      localParticipant.setCameraEnabled(false).catch(() => {});
-      localParticipant.setMicrophoneEnabled(false).catch(() => {});
-    }
-  }, [canPublish, localParticipant]);
-
   if (!canPublish) return null;
+
+  const allow = async () => {
+    await Promise.all([
+      localParticipant.setCameraEnabled(true),
+      localParticipant.setMicrophoneEnabled(true),
+    ]).catch(() => {});
+    setPromptDismissed(true);
+  };
+
+  if (!promptDismissed && !isCameraEnabled && !isMicrophoneEnabled) {
+    return (
+      <div className="absolute left-1/2 top-3 z-30 flex w-[calc(100%-1.5rem)] max-w-sm -translate-x-1/2 items-center justify-between gap-3 rounded-xl border border-indigo-400/30 bg-indigo-950/90 px-4 py-3 text-white shadow-lg backdrop-blur">
+        <p className="text-sm">The host invited you to turn on your camera &amp; mic.</p>
+        <div className="flex shrink-0 gap-1.5">
+          <button
+            onClick={() => setPromptDismissed(true)}
+            className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-zinc-300 hover:bg-white/10"
+          >
+            Deny
+          </button>
+          <button
+            onClick={allow}
+            className="rounded-lg bg-indigo-600 px-2.5 py-1.5 text-xs font-medium hover:bg-indigo-500"
+          >
+            Allow
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="absolute left-1/2 top-3 z-30 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-emerald-950/90 px-3 py-1.5 text-xs font-medium text-emerald-300 shadow-lg backdrop-blur">
@@ -152,8 +179,8 @@ function ViewerControlBar({
   return (
     <div className="absolute bottom-4 left-1/2 z-30 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-zinc-900/80 p-2 shadow-lg backdrop-blur">
       <ControlButton
-        icon={muted ? <MicOffIcon /> : <MicIcon />}
-        label={muted ? "Unmute" : "Mute"}
+        icon={muted ? <SpeakerOffIcon /> : <SpeakerIcon />}
+        label={muted ? "Unmute audio" : "Mute audio"}
         active={muted}
         onClick={() => setMuted((v) => !v)}
       />

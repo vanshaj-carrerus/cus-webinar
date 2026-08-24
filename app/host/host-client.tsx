@@ -6,6 +6,7 @@ import {
   RoomAudioRenderer,
   StartAudio,
   useLocalParticipant,
+  useRemoteParticipants,
 } from "@livekit/components-react";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -23,6 +24,8 @@ import {
   MicOffIcon,
   MinimizeIcon,
   ScreenShareIcon,
+  SpeakerIcon,
+  SpeakerOffIcon,
   VideoIcon,
   VideoOffIcon,
 } from "../icons";
@@ -38,7 +41,13 @@ function HostControlBar({
 }) {
   const { localParticipant, isCameraEnabled, isMicrophoneEnabled, isScreenShareEnabled } =
     useLocalParticipant();
+  const remoteParticipants = useRemoteParticipants();
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [muted, setMuted] = useState(false);
+
+  useEffect(() => {
+    remoteParticipants.forEach((p) => p.setVolume(muted ? 0 : 1));
+  }, [muted, remoteParticipants]);
 
   useEffect(() => {
     const handler = () => setIsFullscreen(Boolean(document.fullscreenElement));
@@ -73,6 +82,12 @@ function HostControlBar({
         label={isScreenShareEnabled ? "Stop sharing screen" : "Share screen"}
         active={isScreenShareEnabled}
         onClick={() => localParticipant.setScreenShareEnabled(!isScreenShareEnabled)}
+      />
+      <ControlButton
+        icon={muted ? <SpeakerOffIcon /> : <SpeakerIcon />}
+        label={muted ? "Unmute audio" : "Mute audio"}
+        active={muted}
+        onClick={() => setMuted((v) => !v)}
       />
       <ControlButton
         icon={isFullscreen ? <MinimizeIcon /> : <MaximizeIcon />}

@@ -205,6 +205,25 @@ export function ScreenShareIcon({ className = base }: IconProps) {
   );
 }
 
+export function SpeakerIcon({ className = base }: IconProps) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className={className}>
+      <path d="M3 8v4h3l4 3V5L6 8H3z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+      <path d="M13 7a4 4 0 0 1 0 6M15.5 5a7 7 0 0 1 0 10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+export function SpeakerOffIcon({ className = base }: IconProps) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className={className}>
+      <path d="M3 8v4h3l4 3V5L6 8H3z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+      <path d="M13 7a4 4 0 0 1 .8 5.6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <path d="M3 3l14 14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 export function BroadcastIcon({ className = base }: IconProps) {
   return (
     <svg viewBox="0 0 20 20" fill="none" className={className}>
