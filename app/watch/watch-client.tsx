@@ -49,27 +49,28 @@ function WaitingForHost() {
     : "Waiting for the host to go live...";
 }
 
-// Listens for the host promoting this viewer to a speaker (a server-side
-// permission change, pushed live via LiveKit's ParticipantPermissionsChanged
-// event) and asks them to allow or deny turning on their camera/mic. If the
-// host later revokes it, their tracks are stopped automatically.
-function SpeakerInvite() {
-  const { localParticipant, isCameraEnabled, isMicrophoneEnabled, isScreenShareEnabled } =
-    useLocalParticipant();
+// Tracks whether the host has promoted this viewer to a speaker (a
+// server-side permission change, pushed live via LiveKit's
+// ParticipantPermissionsChanged event). Shared by the invite banner and the
+// control bar so both agree on when the candidate's own mic/camera are
+// actually usable. `onChange` fires from inside the LiveKit event callback
+// itself (not a derived effect) for side effects that must run exactly once
+// per permission transition, such as resetting the invite prompt.
+function useCanPublish(onChange?: (canPublish: boolean) => void) {
+  const { localParticipant } = useLocalParticipant();
   const [canPublish, setCanPublish] = useState(
     () => localParticipant.permissions?.canPublish ?? false
   );
-  const [promptDismissed, setPromptDismissed] = useState(false);
+  const onChangeRef = useRef(onChange);
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  });
 
   useEffect(() => {
     const handlePermissionsChanged = () => {
       const next = localParticipant.permissions?.canPublish ?? false;
       setCanPublish(next);
-      if (!next) {
-        localParticipant.setCameraEnabled(false).catch(() => {});
-        localParticipant.setMicrophoneEnabled(false).catch(() => {});
-        setPromptDismissed(false);
-      }
+      onChangeRef.current?.(next);
     };
     localParticipant.on(ParticipantEvent.ParticipantPermissionsChanged, handlePermissionsChanged);
     return () => {
@@ -77,7 +78,24 @@ function SpeakerInvite() {
     };
   }, [localParticipant]);
 
-  if (!canPublish) return null;
+  return canPublish;
+}
+
+// Shows an allow/deny prompt when the host invites this viewer to speak. If
+// the host later revokes the invite, their camera/mic are stopped
+// automatically and the prompt resets so a re-invite asks again.
+function SpeakerInvite() {
+  const { localParticipant } = useLocalParticipant();
+  const [promptDismissed, setPromptDismissed] = useState(false);
+  const canPublish = useCanPublish((next) => {
+    if (!next) {
+      localParticipant.setCameraEnabled(false).catch(() => {});
+      localParticipant.setMicrophoneEnabled(false).catch(() => {});
+      setPromptDismissed(false);
+    }
+  });
+
+  if (!canPublish || promptDismissed) return null;
 
   const allow = async () => {
     await Promise.all([
@@ -87,80 +105,52 @@ function SpeakerInvite() {
     setPromptDismissed(true);
   };
 
-  if (!promptDismissed && !isCameraEnabled && !isMicrophoneEnabled) {
-    return (
-      <div className="absolute left-1/2 top-3 z-30 flex w-[calc(100%-1.5rem)] max-w-sm -translate-x-1/2 items-center justify-between gap-3 rounded-xl border border-indigo-400/30 bg-indigo-950/90 px-4 py-3 text-white shadow-lg backdrop-blur">
-        <p className="text-sm">The host invited you to turn on your camera &amp; mic.</p>
-        <div className="flex shrink-0 gap-1.5">
-          <button
-            onClick={() => setPromptDismissed(true)}
-            className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-zinc-300 hover:bg-white/10"
-          >
-            Deny
-          </button>
-          <button
-            onClick={allow}
-            className="rounded-lg bg-indigo-600 px-2.5 py-1.5 text-xs font-medium hover:bg-indigo-500"
-          >
-            Allow
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="absolute left-1/2 top-3 z-30 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-emerald-950/90 px-3 py-1.5 text-xs font-medium text-emerald-300 shadow-lg backdrop-blur">
-      <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-      You&apos;re live
-      <button
-        onClick={() => localParticipant.setMicrophoneEnabled(!isMicrophoneEnabled)}
-        aria-label={isMicrophoneEnabled ? "Mute your mic" : "Unmute your mic"}
-        className="ml-1 flex h-6 w-6 items-center justify-center rounded-full text-emerald-200 hover:bg-white/10"
-      >
-        {isMicrophoneEnabled ? <MicIcon className="h-3.5 w-3.5" /> : <MicOffIcon className="h-3.5 w-3.5" />}
-      </button>
-      <button
-        onClick={() => localParticipant.setCameraEnabled(!isCameraEnabled)}
-        aria-label={isCameraEnabled ? "Turn off your camera" : "Turn on your camera"}
-        className="flex h-6 w-6 items-center justify-center rounded-full text-emerald-200 hover:bg-white/10"
-      >
-        {isCameraEnabled ? <VideoIcon className="h-3.5 w-3.5" /> : <VideoOffIcon className="h-3.5 w-3.5" />}
-      </button>
-      <button
-        onClick={() => localParticipant.setScreenShareEnabled(!isScreenShareEnabled)}
-        aria-label={isScreenShareEnabled ? "Stop sharing your screen" : "Share your screen"}
-        className={`flex h-6 w-6 items-center justify-center rounded-full hover:bg-white/10 ${
-          isScreenShareEnabled ? "text-white" : "text-emerald-200"
-        }`}
-      >
-        <ScreenShareIcon className="h-3.5 w-3.5" />
-      </button>
+    <div className="absolute left-1/2 top-3 z-30 flex w-[calc(100%-1.5rem)] max-w-sm -translate-x-1/2 items-center justify-between gap-3 rounded-xl border border-indigo-400/30 bg-indigo-950/90 px-4 py-3 text-white shadow-lg backdrop-blur">
+      <p className="text-sm">The host invited you to turn on your camera &amp; mic.</p>
+      <div className="flex shrink-0 gap-1.5">
+        <button
+          onClick={() => setPromptDismissed(true)}
+          className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-zinc-300 hover:bg-white/10"
+        >
+          Deny
+        </button>
+        <button
+          onClick={allow}
+          className="rounded-lg bg-indigo-600 px-2.5 py-1.5 text-xs font-medium hover:bg-indigo-500"
+        >
+          Allow
+        </button>
+      </div>
     </div>
   );
 }
 
+// The viewer/candidate's own controls: mic and camera control this
+// participant's own device (only usable once the host has invited them to
+// speak — see useCanPublish), while the speaker button controls what they
+// hear from everyone else. Mirrors HostControlBar so both sides behave the
+// same way for "my own" audio/video.
 function ViewerControlBar({
   chatOpen,
   onToggleChat,
-  videoHidden,
-  onToggleVideo,
   fullscreenTarget,
 }: {
   chatOpen: boolean;
   onToggleChat: () => void;
-  videoHidden: boolean;
-  onToggleVideo: () => void;
   fullscreenTarget: React.RefObject<HTMLElement | null>;
 }) {
+  const { localParticipant, isCameraEnabled, isMicrophoneEnabled, isScreenShareEnabled } =
+    useLocalParticipant();
+  const canPublish = useCanPublish();
   const remoteParticipants = useRemoteParticipants();
-  const [muted, setMuted] = useState(false);
+  const [speakerMuted, setSpeakerMuted] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   useEffect(() => {
-    remoteParticipants.forEach((p) => p.setVolume(muted ? 0 : 1));
-  }, [muted, remoteParticipants]);
+    remoteParticipants.forEach((p) => p.setVolume(speakerMuted ? 0 : 1));
+  }, [speakerMuted, remoteParticipants]);
 
   useEffect(() => {
     const handler = () => setIsFullscreen(Boolean(document.fullscreenElement));
@@ -177,18 +167,49 @@ function ViewerControlBar({
   };
 
   return (
-    <div className="absolute bottom-4 left-1/2 z-30 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-zinc-900/80 p-2 shadow-lg backdrop-blur">
+    <div className="absolute bottom-5 left-1/2 z-30 flex -translate-x-1/2 items-center gap-0.5 rounded-full border border-white/10 bg-zinc-900/90 p-1.5 shadow-xl shadow-black/40 backdrop-blur-md">
       <ControlButton
-        icon={muted ? <SpeakerOffIcon /> : <SpeakerIcon />}
-        label={muted ? "Unmute audio" : "Mute audio"}
-        active={muted}
-        onClick={() => setMuted((v) => !v)}
+        icon={isMicrophoneEnabled ? <MicIcon /> : <MicOffIcon />}
+        label={
+          !canPublish
+            ? "Ask the host to invite you to speak"
+            : isMicrophoneEnabled
+              ? "Mute your mic"
+              : "Unmute your mic"
+        }
+        active={canPublish && !isMicrophoneEnabled}
+        disabled={!canPublish}
+        onClick={() => localParticipant.setMicrophoneEnabled(!isMicrophoneEnabled)}
       />
       <ControlButton
-        icon={videoHidden ? <VideoOffIcon /> : <VideoIcon />}
-        label={videoHidden ? "Show video" : "Hide video"}
-        active={videoHidden}
-        onClick={onToggleVideo}
+        icon={isCameraEnabled ? <VideoIcon /> : <VideoOffIcon />}
+        label={
+          !canPublish
+            ? "Ask the host to invite you to speak"
+            : isCameraEnabled
+              ? "Turn off your camera"
+              : "Turn on your camera"
+        }
+        active={canPublish && !isCameraEnabled}
+        disabled={!canPublish}
+        onClick={() => localParticipant.setCameraEnabled(!isCameraEnabled)}
+      />
+      {canPublish && (
+        <ControlButton
+          icon={<ScreenShareIcon />}
+          label={isScreenShareEnabled ? "Stop sharing your screen" : "Share your screen"}
+          active={isScreenShareEnabled}
+          onClick={() => localParticipant.setScreenShareEnabled(!isScreenShareEnabled)}
+        />
+      )}
+
+      <div className="mx-1 h-6 w-px shrink-0 bg-white/10" />
+
+      <ControlButton
+        icon={speakerMuted ? <SpeakerOffIcon /> : <SpeakerIcon />}
+        label={speakerMuted ? "Unmute audio" : "Mute audio"}
+        active={speakerMuted}
+        onClick={() => setSpeakerMuted((v) => !v)}
       />
       <ControlButton
         icon={isFullscreen ? <MinimizeIcon /> : <MaximizeIcon />}
@@ -204,15 +225,17 @@ function ViewerControlBar({
           onClick={() => setSettingsOpen((v) => !v)}
         />
         {settingsOpen && (
-          <div className="absolute bottom-full left-1/2 mb-2 w-56 -translate-x-1/2 rounded-xl border border-white/10 bg-zinc-900/95 p-3 text-white shadow-xl backdrop-blur">
+          <div className="absolute bottom-full left-1/2 mb-3 w-56 -translate-x-1/2 rounded-xl border border-white/10 bg-zinc-900/95 p-3 text-white shadow-2xl shadow-black/50 backdrop-blur-md">
             <p className="mb-2 text-xs font-medium text-zinc-400">Speaker</p>
             <MediaDeviceSelect kind="audiooutput" />
           </div>
         )}
       </div>
-      <div className="mx-1.5 h-6 w-px bg-white/15" />
+
+      <div className="mx-1 h-6 w-px shrink-0 bg-white/10" />
+
       <DisconnectButton>
-        <span className="flex h-12 w-12 items-center justify-center rounded-full bg-red-600 text-white hover:bg-red-500 [&_svg]:h-5 [&_svg]:w-5">
+        <span className="flex h-11 w-11 items-center justify-center rounded-full bg-red-600 text-white transition-colors duration-150 hover:bg-red-500 [&_svg]:h-[18px] [&_svg]:w-[18px]">
           <LeaveIcon />
         </span>
       </DisconnectButton>
@@ -231,7 +254,6 @@ export default function WatchClient() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [chatOpen, setChatOpen] = useState(true);
-  const [videoHidden, setVideoHidden] = useState(false);
 
   useEffect(() => {
     if (!room) return;
@@ -289,18 +311,10 @@ export default function WatchClient() {
               <ParticipantCount room={room} />
             </div>
             <SpeakerInvite />
-            {videoHidden ? (
-              <div className="flex h-full items-center justify-center text-sm text-zinc-400">
-                Video hidden — audio only
-              </div>
-            ) : (
-              <Stage emptyState={<WaitingForHost />} />
-            )}
+            <Stage emptyState={<WaitingForHost />} />
             <ViewerControlBar
               chatOpen={chatOpen}
               onToggleChat={() => setChatOpen((v) => !v)}
-              videoHidden={videoHidden}
-              onToggleVideo={() => setVideoHidden((v) => !v)}
               fullscreenTarget={fullscreenTarget}
             />
           </div>

@@ -64,7 +64,7 @@ function HostControlBar({
   };
 
   return (
-    <div className="absolute bottom-4 left-1/2 z-30 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-zinc-900/80 p-2 shadow-lg backdrop-blur">
+    <div className="absolute bottom-5 left-1/2 z-30 flex -translate-x-1/2 items-center gap-0.5 rounded-full border border-white/10 bg-zinc-900/90 p-1.5 shadow-xl shadow-black/40 backdrop-blur-md">
       <ControlButton
         icon={isMicrophoneEnabled ? <MicIcon /> : <MicOffIcon />}
         label={isMicrophoneEnabled ? "Mute your mic" : "Unmute your mic"}
@@ -83,6 +83,9 @@ function HostControlBar({
         active={isScreenShareEnabled}
         onClick={() => localParticipant.setScreenShareEnabled(!isScreenShareEnabled)}
       />
+
+      <div className="mx-1 h-6 w-px shrink-0 bg-white/10" />
+
       <ControlButton
         icon={muted ? <SpeakerOffIcon /> : <SpeakerIcon />}
         label={muted ? "Unmute audio" : "Mute audio"}
@@ -95,9 +98,11 @@ function HostControlBar({
         onClick={toggleFullscreen}
       />
       <ControlButton icon={<ChatIcon />} label="Chat" active={chatOpen} onClick={onToggleChat} />
-      <div className="mx-1.5 h-6 w-px bg-white/15" />
+
+      <div className="mx-1 h-6 w-px shrink-0 bg-white/10" />
+
       <DisconnectButton>
-        <span className="flex h-12 w-12 items-center justify-center rounded-full bg-red-600 text-white hover:bg-red-500 [&_svg]:h-5 [&_svg]:w-5">
+        <span className="flex h-11 w-11 items-center justify-center rounded-full bg-red-600 text-white transition-colors duration-150 hover:bg-red-500 [&_svg]:h-[18px] [&_svg]:w-[18px]">
           <LeaveIcon />
         </span>
       </DisconnectButton>
