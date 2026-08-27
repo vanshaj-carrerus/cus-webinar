@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import useSWR from "swr";
 import type { Webinar } from "@/lib/webinars";
@@ -30,7 +31,17 @@ function formatIST(iso: string): string {
   })} IST`;
 }
 
+// Inverse of istInputToIso: render an ISO timestamp back into the
+// "YYYY-MM-DDTHH:mm" shape <input type="datetime-local"> expects, using its
+// IST wall-clock time (not the browser's local timezone).
+function isoToISTInput(iso: string): string {
+  const ist = new Date(new Date(iso).getTime() + 5.5 * 60 * 60 * 1000);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${ist.getUTCFullYear()}-${pad(ist.getUTCMonth() + 1)}-${pad(ist.getUTCDate())}T${pad(ist.getUTCHours())}:${pad(ist.getUTCMinutes())}`;
+}
+
 export default function AdminPage() {
+  const router = useRouter();
   const { data, mutate } = useSWR<{ webinars: Webinar[] }>("/api/webinars", fetcher, {
     refreshInterval: 5000,
   });
@@ -43,6 +54,9 @@ export default function AdminPage() {
   const [error, setError] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [closingId, setClosingId] = useState<string | null>(null);
+  const [editingScheduleId, setEditingScheduleId] = useState<string | null>(null);
+  const [scheduleEditValue, setScheduleEditValue] = useState("");
+  const [savingSchedule, setSavingSchedule] = useState(false);
 
   const createWebinar = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,11 +101,38 @@ export default function AdminPage() {
     }
   };
 
+  const startEditingSchedule = (webinar: Webinar) => {
+    setEditingScheduleId(webinar.id);
+    setScheduleEditValue(webinar.scheduledAt ? isoToISTInput(webinar.scheduledAt) : "");
+  };
+
+  const saveSchedule = async (id: string) => {
+    if (!scheduleEditValue) return;
+    setSavingSchedule(true);
+    try {
+      await fetch(`/api/webinars/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scheduledAt: istInputToIso(scheduleEditValue) }),
+      });
+      setEditingScheduleId(null);
+      await mutate();
+    } finally {
+      setSavingSchedule(false);
+    }
+  };
+
   const copyWatchLink = async (id: string) => {
     const url = `${window.location.origin}/watch?room=${id}`;
     await navigator.clipboard.writeText(url);
     setCopiedId(id);
     setTimeout(() => setCopiedId((current) => (current === id ? null : current)), 1500);
+  };
+
+  const logout = async () => {
+    await fetch("/api/admin/logout", { method: "POST" });
+    router.replace("/admin/login");
+    router.refresh();
   };
 
   return (
@@ -100,10 +141,16 @@ export default function AdminPage() {
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-sm shadow-indigo-600/20">
           <BroadcastIcon className="h-4.5 w-4.5" />
         </div>
-        <div>
+        <div className="min-w-0 flex-1">
           <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Webinar admin</h1>
           <p className="text-sm text-zinc-500">Create a webinar, then go live as the host.</p>
         </div>
+        <button
+          onClick={logout}
+          className="h-9 shrink-0 rounded-lg border border-zinc-200 px-3.5 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+        >
+          Log out
+        </button>
       </div>
 
       <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
@@ -161,11 +208,37 @@ export default function AdminPage() {
                 </span>
               </div>
               <p className="mt-1 font-mono text-xs text-zinc-400">room · {webinar.id}</p>
-              {webinar.scheduledAt && (
-                <p className="mt-1.5 flex items-center gap-1.5 text-xs text-zinc-500">
+              {editingScheduleId === webinar.id ? (
+                <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                  <input
+                    type="datetime-local"
+                    value={scheduleEditValue}
+                    onChange={(e) => setScheduleEditValue(e.target.value)}
+                    title="Scheduled time (IST)"
+                    className="h-8 rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 text-xs text-zinc-900 outline-none focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-50"
+                  />
+                  <button
+                    onClick={() => saveSchedule(webinar.id)}
+                    disabled={savingSchedule || !scheduleEditValue}
+                    className="h-8 rounded-lg bg-indigo-600 px-2.5 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
+                  >
+                    {savingSchedule ? "Saving..." : "Save"}
+                  </button>
+                  <button
+                    onClick={() => setEditingScheduleId(null)}
+                    className="h-8 rounded-lg px-2.5 text-xs font-medium text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => startEditingSchedule(webinar)}
+                  className="mt-1.5 flex items-center gap-1.5 text-xs text-zinc-500 hover:text-indigo-600 dark:hover:text-indigo-400"
+                >
                   <CalendarIcon className="h-3.5 w-3.5 shrink-0" />
-                  {formatIST(webinar.scheduledAt)}
-                </p>
+                  {webinar.scheduledAt ? formatIST(webinar.scheduledAt) : "Set scheduled time"}
+                </button>
               )}
               <div className="mt-2.5 flex flex-col gap-1">
                 <p className="flex min-w-0 items-center gap-1.5 text-xs text-zinc-500">

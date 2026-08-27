@@ -16,9 +16,10 @@ import ParticipantCount from "../participant-count";
 import { Stage } from "../video-stage";
 import { ChatPanel } from "../chat-panel";
 import { ControlButton } from "../control-button";
+import { Countdown, LiveBadge } from "../countdown";
 import {
-  BroadcastIcon,
   ChatIcon,
+  CheckIcon,
   LeaveIcon,
   MaximizeIcon,
   MicIcon,
@@ -36,6 +37,12 @@ type TokenResponse = {
   token: string;
   url: string;
 };
+
+const PREJOIN_TIPS = [
+  { title: "Desktop/Laptop", subtitle: "Recommended" },
+  { title: "Use Chrome", subtitle: "For better experience" },
+  { title: "Stable network", subtitle: ">500kbps speed" },
+];
 
 // Viewers are visible participants too (so chat can resolve their names —
 // see app/api/token/route.ts), so we can't just check "is anyone else
@@ -199,7 +206,9 @@ function ViewerControlBar({
           icon={<ScreenShareIcon />}
           label={isScreenShareEnabled ? "Stop sharing your screen" : "Share your screen"}
           active={isScreenShareEnabled}
-          onClick={() => localParticipant.setScreenShareEnabled(!isScreenShareEnabled)}
+          onClick={() =>
+            localParticipant.setScreenShareEnabled(!isScreenShareEnabled, { audio: true })
+          }
         />
       )}
 
@@ -248,8 +257,12 @@ export default function WatchClient() {
   const room = searchParams.get("room") ?? "";
   const fullscreenTarget = useRef<HTMLDivElement>(null);
 
-  const [name, setName] = useState("");
+  const [name, setName] = useState(() =>
+    typeof window === "undefined" ? "" : (localStorage.getItem("webinarViewerName") ?? "")
+  );
   const [webinarTitle, setWebinarTitle] = useState<string | null>(null);
+  const [scheduledAt, setScheduledAt] = useState<string | null>(null);
+  const [webinarStatus, setWebinarStatus] = useState<string | null>(null);
   const [connection, setConnection] = useState<TokenResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -259,7 +272,11 @@ export default function WatchClient() {
     if (!room) return;
     fetch(`/api/webinars/${room}`)
       .then((res) => (res.ok ? res.json() : null))
-      .then((data) => setWebinarTitle(data?.webinar?.title ?? null))
+      .then((data) => {
+        setWebinarTitle(data?.webinar?.title ?? null);
+        setScheduledAt(data?.webinar?.scheduledAt ?? null);
+        setWebinarStatus(data?.webinar?.status ?? null);
+      })
       .catch(() => {});
   }, [room]);
 
@@ -327,34 +344,66 @@ export default function WatchClient() {
   }
 
   return (
-    <div className="flex flex-1 flex-col items-center justify-center bg-zinc-50 px-6 py-16 dark:bg-zinc-950">
-      <div className="w-full max-w-sm">
-        <div className="flex flex-col items-center text-center">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-sm shadow-indigo-600/20">
-            <BroadcastIcon className="h-5 w-5" />
-          </div>
-          <h1 className="mt-4 text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
-            {webinarTitle ?? "Watch webinar"}
-          </h1>
-          <p className="mt-1 font-mono text-xs text-zinc-400">room · {room}</p>
-        </div>
+    <div className="flex min-h-full flex-1 flex-col bg-black">
+      <div className="flex items-center border-b border-white/10 bg-zinc-950 px-5 py-3.5">
+        <h1 className="truncate text-sm font-semibold text-white">
+          {webinarTitle ?? "Webinar"}
+        </h1>
+      </div>
 
-        <div className="mt-8 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-          <form onSubmit={joinAsViewer} className="flex flex-col gap-3">
+      <div className="flex flex-1 items-center justify-center px-6 py-12">
+        <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+          <p className="text-center text-xs font-medium text-zinc-500">
+            Ensure the following for a smoother experience during the session
+          </p>
+
+          <div className="mt-4 grid grid-cols-3 gap-x-3 gap-y-4">
+            {PREJOIN_TIPS.map((tip) => (
+              <div key={tip.title} className="flex flex-col items-center gap-1.5 text-center">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-indigo-600 text-white">
+                  <CheckIcon className="h-3 w-3" />
+                </span>
+                <p className="text-xs font-semibold text-zinc-700">{tip.title}</p>
+                <p className="text-[11px] leading-tight text-zinc-400">{tip.subtitle}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-5 border-t border-zinc-100 pt-5 text-center">
+            <h2 className="text-sm font-semibold text-zinc-900">
+              {webinarTitle ?? "Watch webinar"}
+            </h2>
+            <p className="mt-0.5 font-mono text-xs text-zinc-400">room &middot; {room}</p>
+            {webinarStatus === "live" ? (
+              <LiveBadge />
+            ) : (
+              scheduledAt && <Countdown target={scheduledAt} />
+            )}
+          </div>
+
+          <form onSubmit={joinAsViewer} className="mt-5 flex flex-col gap-3">
             <input
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                setName(e.target.value);
+                localStorage.setItem("webinarViewerName", e.target.value);
+              }}
               placeholder="Your name"
-              className="h-11 rounded-lg border border-zinc-200 bg-zinc-50 px-4 text-sm text-zinc-900 outline-none transition-colors focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-50 dark:focus:bg-zinc-950 dark:focus:ring-indigo-950"
+              className="h-11 rounded-lg border border-zinc-200 bg-zinc-50 px-4 text-sm text-zinc-900 outline-none transition-colors focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-100"
             />
+            {name.trim() && (
+              <p className="-mt-1 text-center text-xs text-zinc-400">
+                You are joining as <span className="font-medium text-zinc-600">{name.trim()}</span>
+              </p>
+            )}
             <button
               type="submit"
               disabled={loading}
-              className="h-11 rounded-lg bg-indigo-600 text-sm font-medium text-white transition-colors hover:bg-indigo-500 disabled:opacity-50"
+              className="h-11 rounded-lg bg-indigo-600 text-sm font-semibold uppercase tracking-wide text-white transition-colors hover:bg-indigo-500 disabled:opacity-50"
             >
-              {loading ? "Joining..." : "Join as viewer"}
+              {loading ? "Joining..." : "Join"}
             </button>
-            {error && <p className="text-xs text-red-500">{error}</p>}
+            {error && <p className="text-center text-xs text-red-500">{error}</p>}
           </form>
         </div>
       </div>

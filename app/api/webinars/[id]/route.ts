@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { deleteWebinar, getWebinar, updateWebinarStatus, WebinarStatus } from "@/lib/webinars";
+import {
+  deleteWebinar,
+  getWebinar,
+  updateWebinarSchedule,
+  updateWebinarStatus,
+  WebinarStatus,
+} from "@/lib/webinars";
 
 const VALID_STATUSES: WebinarStatus[] = ["scheduled", "live", "ended"];
 
@@ -33,16 +39,32 @@ export async function PATCH(
   const { id } = await params;
   const body = await request.json().catch(() => null);
   const status: WebinarStatus | undefined = body?.status;
+  const scheduledAt: string | undefined = body?.scheduledAt;
 
-  if (!status || !VALID_STATUSES.includes(status)) {
+  if (status === undefined && scheduledAt === undefined) {
+    return NextResponse.json(
+      { error: "Provide `status` and/or `scheduledAt` to update" },
+      { status: 400 }
+    );
+  }
+  if (status !== undefined && !VALID_STATUSES.includes(status)) {
     return NextResponse.json(
       { error: `\`status\` must be one of ${VALID_STATUSES.join(", ")}` },
       { status: 400 }
     );
   }
+  if (scheduledAt !== undefined && Number.isNaN(Date.parse(scheduledAt))) {
+    return NextResponse.json({ error: "`scheduledAt` must be a valid date" }, { status: 400 });
+  }
 
   try {
-    const webinar = await updateWebinarStatus(id, status);
+    let webinar;
+    if (status !== undefined) {
+      webinar = await updateWebinarStatus(id, status);
+    }
+    if (scheduledAt !== undefined) {
+      webinar = await updateWebinarSchedule(id, scheduledAt);
+    }
     if (!webinar) {
       return NextResponse.json({ error: "Webinar not found" }, { status: 404 });
     }

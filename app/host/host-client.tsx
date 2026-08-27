@@ -81,7 +81,9 @@ function HostControlBar({
         icon={<ScreenShareIcon />}
         label={isScreenShareEnabled ? "Stop sharing screen" : "Share screen"}
         active={isScreenShareEnabled}
-        onClick={() => localParticipant.setScreenShareEnabled(!isScreenShareEnabled)}
+        onClick={() =>
+          localParticipant.setScreenShareEnabled(!isScreenShareEnabled, { audio: true })
+        }
       />
 
       <div className="mx-1 h-6 w-px shrink-0 bg-white/10" />

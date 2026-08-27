@@ -82,6 +82,19 @@ export async function updateWebinarStatus(
   return updated ? toWebinar(updated) : undefined;
 }
 
+export async function updateWebinarSchedule(
+  id: string,
+  scheduledAt: string
+): Promise<Webinar | undefined> {
+  const collection = await getCollection();
+  const updated = await collection.findOneAndUpdate(
+    { _id: id },
+    { $set: { scheduledAt } },
+    { returnDocument: "after" }
+  );
+  return updated ? toWebinar(updated) : undefined;
+}
+
 export async function deleteWebinar(id: string): Promise<boolean> {
   const collection = await getCollection();
   const { deletedCount } = await collection.deleteOne({ _id: id });
